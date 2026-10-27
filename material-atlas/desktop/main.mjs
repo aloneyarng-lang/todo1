@@ -70,8 +70,8 @@ async function start() {
     await writeFile(chosen.filePath, json, 'utf8'); return { canceled: false, path: chosen.filePath };
   });
   handle('library:save-text', async ({ filename, content, type }) => {
-    if (!['json', 'csv', 'md', 'svg'].includes(type) || typeof content !== 'string' || content.length > 30 * 1024 * 1024) throw new Error('导出格式不正确。');
-    const chosen = await dialog.showSaveDialog(mainWindow, { title: '保存导入模板', defaultPath: path.basename(filename), filters: [{ name: type.toUpperCase(), extensions: [type] }] });
+    if (!['json', 'csv', 'md', 'svg', 'css'].includes(type) || typeof content !== 'string' || content.length > 30 * 1024 * 1024) throw new Error('导出格式不正确。');
+    const chosen = await dialog.showSaveDialog(mainWindow, { title: '保存导出文件', defaultPath: path.basename(filename), filters: [{ name: type.toUpperCase(), extensions: [type] }] });
     if (!chosen.canceled) await writeFile(chosen.filePath, content, 'utf8');
     return { canceled: chosen.canceled };
   });

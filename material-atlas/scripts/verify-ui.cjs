@@ -104,6 +104,28 @@ async function main(){
     await exec(`__testHooks.associationController.open();`);await click('[data-association-clear]');await waitFor('__testHooks.map.network.edges.length===0&&__testHooks.state.associations.length===0','clear associations');
     await exec(`__testHooks.closeModal();__testHooks.resetFilters(false);__testHooks.render();`);
   });
+  await check('built-in theme switches cover the shell and persist without altering paper data',async()=>{
+    const before=JSON.stringify(data.papers);
+    await click('#ribbon-theme');assert.equal(await page.locator('.theme-card').count(),4);await capture('theme-picker');
+    for(const[id,canvas]of [['ocean','rgb(244, 248, 252)'],['graphite','rgb(24, 34, 42)'],['sand','rgb(250, 245, 235)']]){
+      await click(`[data-theme-id="${id}"]`);await waitFor(`document.documentElement.dataset.theme===${JSON.stringify(id)}`,'theme applied');
+      assert.equal(await exec(`return getComputedStyle(document.querySelector('#graph-wrap')).backgroundColor;`),canvas);
+      assert.equal(data.settings.themePreferences.selected,id);await capture(`theme-picker-${id}`);
+    }
+    assert.equal(JSON.stringify(data.papers),before);
+  });
+  await check('CSS import/export, same-name update, restart persistence, invalid-file recovery and deletion',async()=>{
+    const css='/* @name: 紫藤手稿 */\n:root {--paper:#f1edf7;--surface:#fffcff;--canvas:#f9f4fc;--panel:#ede5f3;--sidebar:#e9e1f1;--ink:#4d3c60;--muted:#806e94;--line:#d8cbe5;--teal:#765393;--teal-light:#e5d7ef;--radius:10px;}';
+    await page.locator('#theme-input').setInputFiles({name:'wisteria.css',mimeType:'text/css',buffer:Buffer.from(css)});await waitFor('document.documentElement.dataset.theme.startsWith("custom-")','CSS imported');
+    const id=data.settings.themePreferences.selected;assert.equal(data.settings.themePreferences.themes.length,1);assert.equal(await exec(`return getComputedStyle(document.body).backgroundColor;`),'rgb(241, 237, 247)');await pause(60);assert.equal(await exec(`const card=document.querySelector('.theme-card.is-selected').getBoundingClientRect(),grid=document.querySelector('.theme-grid').getBoundingClientRect();return card.top>=grid.top&&card.bottom<=grid.bottom;`),true);await capture('theme-custom');
+    await click('[data-theme-action="export"]');await click('[data-theme-action="template"]');await pause(80);
+    const exported=await fs.readFile(path.join(output,`materia-theme-${id}.css`),'utf8');assert.match(exported,/紫藤手稿/);assert.match(exported,/--teal: #765393/);assert.ok(exportsSaved.includes('materia-theme-template.css'));
+    await page.locator('#theme-input').setInputFiles({name:'wisteria.css',mimeType:'text/css',buffer:Buffer.from(css.replace('#765393','#684882'))});await waitFor('getComputedStyle(document.documentElement).getPropertyValue("--teal").trim()==="#684882"','theme updated');assert.equal(data.settings.themePreferences.themes.length,1);assert.equal(data.settings.themePreferences.selected,id);
+    const before=JSON.stringify(data.settings.themePreferences);await page.locator('#theme-input').setInputFiles({name:'bad.css',mimeType:'text/css',buffer:Buffer.from('body{display:none}')});await waitFor('document.querySelector("#toast-region").textContent.includes("主题模板")','invalid CSS shown');assert.equal(JSON.stringify(data.settings.themePreferences),before);
+    await page.reload();await waitFor('globalThis.__testHooks?.state.ready','reopened themed app');assert.equal(await exec(`return document.documentElement.dataset.theme;`),id);assert.equal(await exec(`return getComputedStyle(document.documentElement).getPropertyValue('--teal').trim();`),'#684882');
+    await click('#ribbon-theme');await click(`[data-theme-remove="${id}"]`);await waitFor('document.documentElement.dataset.theme==="paper"','delete active theme');assert.equal(data.settings.themePreferences.themes.length,0);
+    await click('[data-theme-id="graphite"]');await click('[data-theme-action="reset"]');await waitFor('document.documentElement.dataset.theme==="paper"','restore paper');await exec('__testHooks.closeModal();');
+  });
   // Read-only real metadata snapshot for dense, realistic layout verification. No PDF access.
   const real=JSON.parse(await fs.readFile(path.join(root,'release','Materia-win32-x64','文献库','library.json'),'utf8'));
   data={papers:real.papers,settings:{...clone(real.settings),graphAssociations:[],comparisonSelection:[]}};
@@ -116,6 +138,12 @@ async function main(){
     ['layout-1100-collapsed',1100,760,false,false,0,.6],
     ['layout-1000-expanded',1000,760,true,true,1,1.8]
   ])await check(name,()=>layout(name,width,height,left,detail,selected,zoom));
+  await check('dark theme renders real literature and advanced settings at a narrow viewport',async()=>{
+    await click('#ribbon-theme');await click('[data-theme-id="graphite"]');await waitFor('document.documentElement.dataset.theme==="graphite"','dark palette');await exec('__testHooks.closeModal();');await capture('theme-dark-1000');
+    await click('#filter-button');await capture('theme-dark-settings');await click('[data-action="close-filters"]');
+    assert.equal(await exec(`return document.documentElement.scrollWidth>innerWidth;`),false);
+    await click('#ribbon-theme');await click('[data-theme-action="reset"]');await exec('__testHooks.closeModal();');
+  });
   assert.deepEqual(errors,[],errors.join('\n'));
   await fs.writeFile(path.join(output,'ui-report.json'),JSON.stringify({passed:checks.length,checks,errors,exportsSaved,isolated:true,visibleWindow:false},null,2));
   await browser.close();

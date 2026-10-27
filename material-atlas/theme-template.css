@@ -1,0 +1,24 @@
+/* @name: 我的学术主题 */
+/* Materia 主题：颜色、字体、圆角；只修改 :root 中的变量。 */
+:root {
+  --paper: #f7f7f2;
+  --surface: #fcfdf9;
+  --canvas: #fafcf7;
+  --panel: #f0f4ec;
+  --sidebar: #f1f4ed;
+  --ink: #2e4843;
+  --muted: #718174;
+  --line: #dce5d7;
+  --teal: #285d59;
+  --teal-light: #e7efe3;
+  --on-accent: #ffffff;
+  --warning: #9b7946;
+  --warning-soft: #f5efdf;
+  --danger: #a15d54;
+  --danger-soft: #f7ece8;
+  --shadow: #18362c1c;
+  --serif: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  --radius: 6px;
+  --theme-mode: light;
+}

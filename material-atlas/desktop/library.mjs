@@ -12,6 +12,7 @@ import { cleanFigureSettings } from '../dist/figure.js';
 import { cleanGraphSettings } from '../dist/graph-settings.js';
 import { cleanAssociations } from '../dist/associations.js';
 import { seedJournalMetrics } from '../dist/journal-data.js';
+import { cleanThemePreferences } from '../dist/themes.js';
 
 export function resolveInside(root, relative) {
   const resolved = path.resolve(root, relative);
@@ -72,7 +73,8 @@ export class LocalLibrary {
   getPapers() { return this.data.papers.map(p => ({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
-    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations'].includes(key)) throw new Error('不支持的文献库设置。');
+    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences'].includes(key)) throw new Error('不支持的文献库设置。');
+    if(key==='themePreferences')value=cleanThemePreferences(value);
     if(key==='graphPreferences')value=cleanGraphSettings(value);
     if(key==='graphAssociations')value=cleanAssociations(value);
     if (key === 'chartPreferences') value = cleanFigureSettings(value);

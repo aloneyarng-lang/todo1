@@ -12,6 +12,7 @@ import { createBulkEditor } from './bulk-edit.js';
 import { createParameterFinder, parameterInventory, parameterResults, parameterNameKey, parameterRecordPreview } from './parameter-index.js';
 import { GRAPH_DEFAULTS, cleanGraphSettings } from './graph-settings.js';
 import { createAssociationController, cleanAssociations, associationLocalPapers } from './associations.js';
+import { createThemeController } from './themes.js';
 import { BUNDLED_METRICS, JOURNAL_DATA_CHECKED, seedJournalMetrics } from './journal-data.js';
 import { createNotesController } from './notes.js';
 import { normalizeAuthors, authorsText, numericImpact, impactOf, filterCatalog, parseMetrics, mergeMetrics, matchMetadata } from './catalog.js';
@@ -45,6 +46,7 @@ const icons = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>', arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
 };
 Object.assign(icons, {'panel-left':'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>','panel-right':'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',chart:'<path d="M4 3v17h17M7 15l4-5 4 2 5-7"/>',table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>',ruler:'<path d="m3 16 13-13 5 5L8 21zM7 12l2 2m2-6 2 2m2-6 2 2"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>','eye-off':'<path d="m3 3 18 18M8 6a12 12 0 0 1 4-1c6 0 10 7 10 7a18 18 0 0 1-4 4M6 8a20 20 0 0 0-4 4s4 7 10 7a12 12 0 0 0 4-1"/>',overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',undo:'<path d="M4 10h10a6 6 0 1 1 0 12M4 10l5-5m-5 5 5 5"/>',local:'<circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="20" cy="19" r="2"/><path d="m6 6 4 4m4 0 4-4m-4 8 4 4"/>'});
+icons.palette='<path d="M12 3a9 9 0 1 0 0 18h1.2a2 2 0 0 0 1.2-3.6 1.7 1.7 0 0 1 1-3.1H18a3 3 0 0 0 3-3A8.9 8.9 0 0 0 12 3Z"/><circle cx="7" cy="10" r=".8"/><circle cx="10" cy="6.8" r=".8"/><circle cx="15" cy="7.5" r=".8"/>';
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.files}</svg>`;
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -52,7 +54,7 @@ const uid = prefix => `${prefix}-${crypto.randomUUID()}`;
 const emptyFilters = () => ({ tags: [], excludeTags: [], parameterName: '', parameterUnit: '*', tagMode: 'all', journal: '', author: '', institution: '', yearFrom: '', yearTo: '', minIF: '', maxIF: '', impactYear: '', hasNotes: false, onlyFavorites: false, onlyRelated: false });
 const state = { papers: [], collections: [], notes: {}, compareIds: new Set(), hiddenIds: new Set(), hiddenTagNodes: new Set(), focusGraph: true, leftPanelOpen: false, detailOpen: true, graphPreferences: {...GRAPH_DEFAULTS}, associations: [], journalMetrics: [], desktopInfo: null, searchScope: 'all', filters: emptyFilters(), showEdges: true, showLabels: true, mode: 'own', nav: 'all', collection: '', query: '', tag: '', year: '', sort: 'newest', view: 'graph', selected: '', listLimit: 100, ready: false, pendingFiles: [], storageError: false };
 let modalContext = '';
-let batch, comparison, performanceEditor, bulkEditor, parameterFinder, associationController;
+let batch, comparison, performanceEditor, bulkEditor, parameterFinder, associationController, themeController;
 let layoutTimer, graphPreferenceTimer, switchingLibrary = false;
 let pendingRemovalIds = [], removalBusy = false, lastRemoval = null;
 let activeObjectURLs = new Set();
@@ -335,6 +337,7 @@ async function undoRemoval() {
 function settingsModal() {
   const size = state.papers.reduce((sum, p) => sum + (p.file?.size || p.size || 0), 0);
   showModal('文献库与备份', '文献、笔记与研究坐标，都由你掌握。', `
+    <div class="settings-card"><div><strong>主题与外观</strong><p>内置阅读配色，或导入自己的 CSS 变量主题。</p></div><button class="outline-button" data-action="themes">切换 / 导入主题</button></div>
     ${native ? `<div class="settings-card folder-card"><div><strong>当前本地文献库</strong><p class="folder-path">${escape(state.desktopInfo?.path || '')}</p><p>原始 PDF、作者机构、标签、笔记和期刊指标均保存在这个文件夹。</p></div></div><div class="folder-actions"><button class="outline-button" data-action="choose-folder">选择 / 新建文献库</button><button class="outline-button" data-action="open-folder">打开文件夹</button></div>` : '<div class="info-box">当前是网页预览。桌面 EXE 使用本地文件夹保存数据；网页预览仍使用浏览器存储。</div>'}
     <div class="settings-card"><div><strong>导入文献元数据</strong><p>批量导入 Markdown：标题、作者机构、标签、性能参数和笔记。</p></div><button class="outline-button" data-action="import-metadata">导入</button></div>
     <div class="settings-card"><div><strong>期刊影响因子</strong><p>已收录 ${state.journalMetrics.length} 条年度指标，含出版方公开的 2025 年 JIF。</p></div><button class="outline-button" data-action="journal-catalog">查看数据 / 来源</button></div>
@@ -413,7 +416,7 @@ const actions = {
   'select-filtered': () => comparison.selectFiltered(),
   'batch-remove': () => deleteModal([...state.compareIds]), 'bulk-edit': () => bulkEditor.open(),
   'confirm-removal': confirmRemoval, 'undo-removal': undoRemoval,
-  settings: settingsModal, 'storage-info': settingsModal, export: exportLibrary, restore: () => $('#backup-input').click(),
+  themes: () => themeController.open(), settings: settingsModal, 'storage-info': settingsModal, export: exportLibrary, restore: () => $('#backup-input').click(),
   help: helpModal, shortcuts: shortcutsModal,
   'zoom-in': () => map.zoom(1.2), 'zoom-out': () => map.zoom(1 / 1.2), fit: () => map.fit(),
   'clear-tag': () => { state.tag = ''; render(); }, 'restore-hidden': () => { state.hiddenIds.clear(); state.hiddenTagNodes.clear(); render(); }, 'hide-node': () => { if (state.selected) { state.hiddenIds.add(state.selected); render(); } }, 'graph-motion': () => { $('#graph-motion').textContent = map.toggleMotion() ? '暂停布局' : '继续布局'; }, 'graph-relayout': () => { map.relayout(); map.fit(); },
@@ -433,6 +436,7 @@ const actions = {
     let info;
     try { info = await native?.chooseFolder(); } finally { switchingLibrary = false; }
     if (!info) return;
+    themeController.load(await getSetting('themePreferences'));
     map.setLayout(await getSetting('graphLayout') || {});
     state.graphPreferences=cleanGraphSettings(await getSetting('graphPreferences')||{});state.associations=cleanAssociations(await getSetting('graphAssociations')||[]);
     lastRemoval = await getSetting('lastRemoval') || null; state.desktopInfo = info; state.papers = await getPapers(); state.collections = await getSetting('collections') || []; state.notes = await getSetting('notes') || {}; state.journalMetrics = await getSetting('journalMetrics') || []; state.compareIds = new Set((await getSetting('comparisonSelection') || []).filter(id=>state.papers.some(p=>p.id===id))); state.mode = 'own'; state.selected = ''; state.nav = 'all'; resetFilters(false); map.fit(); closeModal(); render(); toast(`已打开文献库：${info.path}`);
@@ -449,7 +453,7 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('button');
   if (removalBusy || bulkEditor?.isBusy()) return;
   try {
-    if (button?.matches('[data-association-kind],[data-add-association],[data-remove-association],[data-association-clear],[data-parameter-name],[data-link-paper],[data-link-tag],[data-note-action],[data-note-edit],[data-note-delete],[data-note-owner-type],[data-comparison-action],[data-comparison-tab],[data-comparison-remove],[data-bulk-action],[data-batch-action],[data-batch-remove],[data-batch-md-remove],[data-performance-add],[data-performance-remove]') || event.target.closest('.compare-checkbox')) return;
+    if (button?.matches('[data-theme-id],[data-theme-action],[data-theme-remove],[data-association-kind],[data-add-association],[data-remove-association],[data-association-clear],[data-parameter-name],[data-link-paper],[data-link-tag],[data-note-action],[data-note-edit],[data-note-delete],[data-note-owner-type],[data-comparison-action],[data-comparison-tab],[data-comparison-remove],[data-bulk-action],[data-batch-action],[data-batch-remove],[data-batch-md-remove],[data-performance-add],[data-performance-remove]') || event.target.closest('.compare-checkbox')) return;
     if (button?.dataset.action && actions[button.dataset.action]) { await actions[button.dataset.action](); return; }
     if (button?.dataset.favorite) { await favorite(button.dataset.favorite); return; }
     if (button?.dataset.nav) {
@@ -576,7 +580,7 @@ async function downloadTemplate(kind) {
 
 async function saveText(content,filename,type) {
   if (native) return native.saveText({content,filename,type});
-  const url=URL.createObjectURL(new Blob([content],{type:type==='svg'?'image/svg+xml;charset=utf-8':type==='md'?'text/markdown;charset=utf-8':'text/plain;charset=utf-8'}));triggerDownload(url,filename);setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const url=URL.createObjectURL(new Blob([content],{type:type==='svg'?'image/svg+xml;charset=utf-8':type==='css'?'text/css;charset=utf-8':type==='md'?'text/markdown;charset=utf-8':'text/plain;charset=utf-8'}));triggerDownload(url,filename);setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 async function reloadLibrary() {
   state.papers=await getPapers();state.notes=await getSetting('notes') || {};state.collections=await getSetting('collections') || [];state.journalMetrics=await getSetting('journalMetrics') || [];
@@ -584,6 +588,7 @@ async function reloadLibrary() {
   lastRemoval = await getSetting('lastRemoval') || null;
 }
 associationController=createAssociationController({escape,showModal,toast,getPapers:papers,getVisible:visiblePapers,getRules:()=>state.associations,save:async rules=>{const clean=cleanAssociations(rules);await setSetting('graphAssociations',clean);state.associations=clean;},changed:render});
+themeController=createThemeController({escape,showModal,toast,saveText,persist:value=>setSetting('themePreferences',value),changed:()=>{map.labelWidths.clear();if(map.network)map.paint();}});
 parameterFinder=createParameterFinder({escape,showModal,toast,getPapers:papers,apply:applyParameterFilter});
 comparison=createComparison({escape,showModal,toast,getPapers:papers,getFiltered:visiblePapers,getMetrics:()=>state.journalMetrics,findParameter:applyParameterFilter,openParameterFinder:()=>parameterFinder.open(),plotActiveParameter,savePreferences:value=>setSetting('chartPreferences',value),getSelection:()=>state.compareIds,setSelection:async ids=>{const previous=state.compareIds;state.compareIds=ids;const refresh=()=>{comparison.refreshBar();renderDetail();hydrateIcons($('#detail-panel'));renderParameterSummary(visiblePapers());};refresh();try{await setSetting('comparisonSelection',[...ids]);}catch(error){if(state.compareIds===ids)state.compareIds=previous;refresh();throw error;}},pickList:()=>{closeModal();state.view='list';render();},saveText,saveDataURL:async(url,filename,type)=>{
   const comma=url.indexOf(','),head=url.slice(0,comma),body=url.slice(comma+1);
@@ -598,6 +603,7 @@ performanceEditor=createPerformanceEditor({escape,showModal,toast,getPapers:pape
 async function init() {
   hydrateIcons();
   try {
+    themeController.load(await getSetting('themePreferences'));
     state.papers = await getPapers();
     state.collections = await getSetting('collections') || [];
     state.notes = await getSetting('notes') || {};
