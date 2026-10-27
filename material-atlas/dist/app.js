@@ -418,6 +418,7 @@ const actions = {
     let info;
     try { info = await native?.chooseFolder(); } finally { switchingLibrary = false; }
     if (!info) return;
+    await agentController.changeLibrary();
     themeController.load(await getSetting('themePreferences'));
     map.setLayout(await getSetting('graphLayout') || {});
     state.graphPreferences=cleanGraphSettings(await getSetting('graphPreferences')||{});state.associations=cleanAssociations(await getSetting('graphAssociations')||[]);
