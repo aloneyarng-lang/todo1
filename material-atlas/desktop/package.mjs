@@ -8,7 +8,7 @@ const stage = path.join(root, '.local', 'desktop-stage-v12');
 const iconPath = await makeIcon();
 await mkdir(path.join(stage, 'dist'), { recursive: true });
 await mkdir(path.join(stage, 'desktop'), { recursive: true });
-for (const file of ['ai-agent.js','ai-agent-core.js','ai-agent.css','agent-markdown.js','agent-history.js']) await copyFile(path.join(root,'dist',file),path.join(stage,'dist',file));
+for (const file of ['ai-agent.js','ai-agent-core.js','ai-agent.css','agent-markdown.js','agent-history.js','agent-chat-utils.js']) await copyFile(path.join(root,'dist',file),path.join(stage,'dist',file));
 await copyFile(path.join(root,'desktop','agent.mjs'),path.join(stage,'desktop','agent.mjs'));
 await copyFile(path.join(root,'desktop','agent-history.mjs'),path.join(stage,'desktop','agent-history.mjs'));
 for (const file of ['index.html', 'app.js', 'styles.css', 'workspace.css', 'figures.css', 'themes.css', 'themes.js', 'reader.js', 'reader-ui.js', 'reader-annotations.js', 'reader-annotations.css', 'reader-layout.js', 'reader.css', 'note-model.js', 'note-media.js', 'graph.js', 'graph-view.js', 'force-layout.js', 'graph-settings.js', 'associations.js', 'tags.js', 'removal.js', 'bulk-edit.js', 'paper-actions.js', 'paper-actions.css', 'journal-data.js', 'storage.js', 'palette.js', 'notes.js', 'note-links.js', 'catalog.js', 'parameters.js', 'parameter-index.js', 'chart-data.js', 'figure.js', 'markdown.js', 'import-plan.js', 'example-migration.js', 'batch-import.js', 'comparison.js', 'comparison-ui.js', 'performance-editor.js', 'favicon.svg']) await copyFile(path.join(root, 'dist', file), path.join(stage, 'dist', file));

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage, clipboard } from 'electron';
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +61,10 @@ async function start() {
   handle('library:read-pdf', id => library.readPdf(id));
   handle('library:info', () => library.info());
   handle('agent:get-config', () => agentSettings.publicConfig());
+  handle('agent:copy-text', value => {
+    if(typeof value!=='string'||value.length>1000000)throw new Error('复制内容无效或过长。');
+    clipboard.writeText(value);return true;
+  });
   handle('agent:get-history', async () => { const store=agentHistory;await store.queue;return {libraryKey:store.root,state:await store.load()}; });
   handle('agent:save-history', payload => {
     if(!payload||payload.libraryKey!==agentHistory.root)throw new Error('文献库已切换，历史记录未写入其他文献库。');

@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('materiaDesktop', {
   agentGetConfig: () => ipcRenderer.invoke('agent:get-config'),
+  agentCopyText: value => ipcRenderer.invoke('agent:copy-text', value),
   agentSaveConfig: value => ipcRenderer.invoke('agent:save-config', value),
   agentRun: payload => ipcRenderer.invoke('agent:run', payload),
   agentCancel: id => ipcRenderer.invoke('agent:cancel', id),

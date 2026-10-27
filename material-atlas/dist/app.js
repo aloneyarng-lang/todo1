@@ -647,5 +647,5 @@ async function init() {
   render();
   $('.import-main').disabled = !state.ready || state.storageError;
 }
-agentController = createAgentController({ getPapers: papers, getNotes: () => state.notes, getSelectedIds: () => state.compareIds.size ? [...state.compareIds] : (state.selected ? [state.selected] : []), getSetting, setSetting, isReady: () => state.ready && !state.storageError, openPaper: id => { if (!state.papers.some(p => p.id === id)) { toast('这篇文献已不在当前文献库。'); return; } state.nav='all'; resetFilters(false); state.detailOpen=true; selectPaper(id,true); } });
+agentController = createAgentController({ saveText, getPapers: papers, getNotes: () => state.notes, getSelectedIds: () => state.compareIds.size ? [...state.compareIds] : (state.selected ? [state.selected] : []), getSetting, setSetting, isReady: () => state.ready && !state.storageError, openPaper: id => { if (!state.papers.some(p => p.id === id)) { toast('这篇文献已不在当前文献库。'); return; } state.nav='all'; resetFilters(false); state.detailOpen=true; selectPaper(id,true); } });
 init();

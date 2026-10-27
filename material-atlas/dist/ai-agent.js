@@ -1,6 +1,7 @@
 import { runResearchAgent } from './ai-agent-core.js';
 import { renderChatMarkdown } from './agent-markdown.js';
 import { cleanAgentHistory, emptyAgentHistory, chatTitle } from './agent-history.js';
+import { completedChatContext, retryQuestion, chatMarkdown } from './agent-chat-utils.js';
 
 const labels = { library_overview: '正在查看文献目录…', search_library: '正在检索相关文献…', read_papers: '正在阅读笔记与参数…', compare_parameters: '正在整理性能观测…' };
 export function createAgentController(options) {
@@ -13,7 +14,7 @@ export function createAgentController(options) {
   panel.setAttribute('aria-label', 'AI 研究助手');
   panel.innerHTML = `<header class="agent-header"><div><small>MATERIA AGENT</small><h2>AI 研究助手</h2></div><button type="button" class="icon-button" data-agent-action="close" aria-label="关闭 AI 研究助手" title="关闭 AI 研究助手">×</button></header>
     <div class="agent-toolbar"><label>文献范围<select id="agent-scope"><option value="all">整个文献库</option><option value="selected">当前选中文献</option></select></label><button type="button" class="text-button" data-agent-action="new">新对话</button><button type="button" class="text-button" data-agent-action="settings">服务设置</button></div>
-    <div class="agent-chatbar"><span id="agent-chat-title">新对话</span><button type="button" class="text-button" data-agent-action="history" aria-expanded="false" aria-controls="agent-history">历史记录</button></div>
+    <div class="agent-chatbar"><span id="agent-chat-title">新对话</span><button type="button" class="text-button" data-agent-action="export" title="将当前聊天保存为 Markdown" disabled>导出 .md</button><button type="button" class="text-button" data-agent-action="history" aria-expanded="false" aria-controls="agent-history">历史记录</button></div>
     <details id="agent-settings" class="agent-settings"><summary>配置 AI 服务</summary><form id="agent-config-form">
       <label>API 地址<input id="agent-base-url" type="url" placeholder="https://api.example.com/v1" required autocomplete="off"></label>
       <div class="agent-config-row"><label>模型名称<input id="agent-model" placeholder="填写服务提供的模型 ID" maxlength="200" required autocomplete="off"></label><label>API 协议<select id="agent-protocol"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select></label></div>
@@ -37,7 +38,7 @@ export function createAgentController(options) {
   const activeChat = () => chats.conversations.find(chat=>chat.id===chats.activeId);
   const scopeIds = () => $('#agent-scope').value === 'selected' ? (activeChat()?.scopeIds || [...new Set(options.getSelectedIds())]) : null;
   const identity = () => JSON.stringify(scopeIds());
-  const history = () => entries.filter(e => e.role !== 'error').map(({role, content}) => ({role,content}));
+  const history = () => completedChatContext(entries);
   const notice = () => {
     let host = config.baseUrl; try { host = new URL(config.baseUrl).host; } catch {}
     $('#agent-data-notice').textContent = `发送后，问题及检索到的文献元数据、笔记和性能参数将发送至 ${host}。不发送 PDF 文件，不修改文献库。`;
@@ -47,6 +48,7 @@ export function createAgentController(options) {
   function chatbar(){
     const chat=activeChat();$('#agent-chat-title').textContent=chat?.title||'新对话';$('#agent-chat-title').title=chat?.title||'新对话';
     $('[data-agent-action="history"]').textContent=`历史记录${chats.conversations.length?` · ${chats.conversations.length}`:''}`;
+    $('[data-agent-action="export"]').disabled=!entries.length;
     $('#agent-scope option[value="selected"]').textContent=chat?.scopeIds?`该对话文献（${chat.scopeIds.length} 篇）`:'当前选中文献';
   }
   function showHistory(value){
@@ -84,6 +86,7 @@ export function createAgentController(options) {
     busy = value;
     $('#agent-send').disabled = value; $('#agent-scope').disabled = value;
     $('[data-agent-action="history"]').disabled=value;
+    panel.querySelectorAll('[data-agent-retry]').forEach(button=>{button.disabled=value;});
     $('[data-agent-action="stop"]').hidden = !value;
     $('#agent-settings').querySelectorAll('input,select,button').forEach(el => { el.disabled = value || (el.id === 'agent-remember' && !config.canRememberKey); });
   }
@@ -95,13 +98,19 @@ export function createAgentController(options) {
       target.scrollTop=0; return;
     }
     target.replaceChildren(); sources.clear();
-    for (const entry of entries) {
+    for (const [index,entry] of entries.entries()) {
       const article = document.createElement('article'); article.className = `agent-message agent-${entry.role}`;
       const heading = document.createElement('small'); heading.textContent = entry.role === 'user' ? '你' : entry.role === 'error' ? '请求未完成' : 'Materia Agent';
       const content = document.createElement('div'); content.className = 'agent-message-body';
       if (entry.role === 'error') content.textContent=entry.content;
       else { content.classList.add('agent-markdown'); content.innerHTML=renderChatMarkdown(entry.content,entry.sources || []); }
       article.append(heading,content);
+      if(entry.role==='assistant'||(entry.role==='error'&&retryQuestion(entries,index))){
+        const toolbar=document.createElement('div');toolbar.className='agent-message-actions';const button=document.createElement('button');button.type='button';button.className='text-button';
+        if(entry.role==='assistant'){button.dataset.agentCopy=String(index);button.textContent='复制 Markdown';}
+        else{button.dataset.agentRetry=String(index);button.textContent='重试此问题';button.disabled=busy;}
+        toolbar.append(button);article.append(toolbar);
+      }
       if (entry.sources?.length) {
         const list = document.createElement('details'); list.className='agent-sources';
         const summary = document.createElement('summary'); summary.textContent=`本次检索来源 · ${entry.sources.length} 篇`; list.append(summary);
@@ -173,7 +182,7 @@ export function createAgentController(options) {
     entries.push({role:'user',content:question}); render(); $('#agent-question').value=''; busyState(true);
     const turn=++generation; requestId=crypto.randomUUID(); controller=new AbortController();
     const progress=p=>{if(turn===generation)status(p.stage==='tool'?(labels[p.name]||'正在检索…'):'正在整理回答…');};
-    let unsubscribe;
+    let unsubscribe,answerReceived=false;
     try {
       await persistHistory();if(turn!==generation)return;
       let result;
@@ -187,9 +196,10 @@ export function createAgentController(options) {
         }});
       }
       if(turn!==generation)return;
-      entries.push({role:'assistant',content:result.answer,sources:result.sources});render();await persistHistory();if(turn!==generation)return;status('回答完成。可点击引用查看文献。');
+      entries.push({role:'assistant',content:result.answer,sources:result.sources});answerReceived=true;render();await persistHistory();if(turn!==generation)return;status('回答完成。可点击引用查看文献。');
     } catch(error) {
       if(turn!==generation)return;
+      if(answerReceived){status('回答已生成，但历史保存失败。可先复制回答或导出聊天，再检查本地存储空间与权限。');return;}
       const stopped=controller.signal.aborted;
       entries.push({role:'error',content:stopped?'已停止生成。':(error.message||'请求失败，请重试。')});render();status(stopped?'已停止。':'可修改设置或问题后重试。');
       $('#agent-question').value=question;
@@ -209,6 +219,17 @@ export function createAgentController(options) {
     if(action==='close')close(); if(action==='stop')stop(); if(action==='new')reset().catch(e=>status(e.message));
     if(action==='history'&&!busy)showHistory($('#agent-history').hidden);
     if(action==='back')showHistory(false);
+    if(action==='export'&&entries.length){
+      const chat=activeChat();if(chat)options.saveText(chatMarkdown({...chat,entries}),`materia-chat-${chat.id}.md`,'md').then(result=>{if(!result?.canceled)status('聊天已导出为 Markdown。');}).catch(()=>status('聊天导出失败，请重试。'));
+    }
+    if(button.dataset.agentCopy!==undefined){
+      const entry=entries[Number(button.dataset.agentCopy)];if(entry?.role==='assistant'){
+        const copy=desktop&&typeof native.agentCopyText==='function'?native.agentCopyText(entry.content):navigator.clipboard?.writeText(entry.content);
+        if(!copy){status('此环境不支持复制，请使用导出 .md。');return;}
+        copy.then(()=>status('已复制 Markdown。')).catch(()=>status('复制失败，可使用导出 .md。'));
+      }
+    }
+    if(button.dataset.agentRetry!==undefined&&!busy){const question=retryQuestion(entries,Number(button.dataset.agentRetry));if(question){$('#agent-question').value=question;ask().catch(error=>{busyState(false);status(error.message);});}}
     if(button.dataset.historyOpen)resumeChat(button.dataset.historyOpen).catch(e=>status(e.message));
     if(button.dataset.historyDelete&&!busy){
       if(!button.dataset.confirmed){button.dataset.confirmed='true';button.textContent='确认删除';return;}

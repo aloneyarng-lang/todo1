@@ -57,6 +57,11 @@ async function main(){
     await page.locator('.agent-citation').first().click();assert.equal(await page.locator('#ai-agent-panel').isHidden(),true);await page.locator('#detail-panel').filter({hasText:'高熵合金 A'}).waitFor();
     await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();assert.equal(await page.locator('.agent-assistant').count(),1);
   });
+  await check('copy and Markdown export preserve raw answers and sources without exposing service settings',async()=>{
+    await page.evaluate(()=>{Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async text=>{window.__copiedAgentText=text;}});});
+    await page.locator('[data-agent-copy]').first().click();await page.locator('#agent-status').filter({hasText:'已复制 Markdown'}).waitFor();const copied=await page.evaluate(()=>window.__copiedAgentText);assert.ok(copied.includes('## 研究结论')&&copied.includes('```js')&&copied.includes('[p1]'));
+    const downloadReady=page.waitForEvent('download');await page.locator('[data-agent-action="export"]').click();const download=await downloadReady;const exported=await fs.readFile(await download.path(),'utf8');assert.ok(download.suggestedFilename().endsWith('.md'));assert.ok(exported.includes('## 研究结论')&&exported.includes('## 文献来源')&&exported.includes('高熵合金 A'));assert.ok(!exported.includes('synthetic-test-key'));assert.ok(!exported.includes(mockUrl));
+  });
   await check('empty selected scope blocks network requests and keeps the question',async()=>{
     // Citation opened p1, so clear it by navigating to the library before selecting scope.
     await page.locator('[data-agent-action="close"]').click();await page.locator('.workspace-ribbon [data-nav="library"]').click();await page.locator('#search').fill('no-matching-fixture');await page.locator('#detail-panel.detail-empty').waitFor({state:'attached'});await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();
@@ -101,6 +106,14 @@ async function main(){
     const remove=page.getByRole('button',{name:'删除聊天：比较高熵合金的屈服强度',exact:true});await remove.click();await remove.click();await page.locator('#agent-status').filter({hasText:'已删除'}).waitFor();assert.equal(await page.locator('[data-history-open]').count(),1);
     await page.reload();await page.locator('.import-main:not([disabled])').waitFor({state:'attached'});await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();await page.locator('[data-agent-action="history"]').click();assert.equal(await page.locator('[data-history-open]').count(),1);
     await page.locator('[data-history-open]').click();await page.locator('.agent-assistant table').first().waitFor();assert.equal(await page.locator('.agent-assistant').count(),2);
+  });
+  await check('retry resends only its failed question and excludes failed attempts from model context',async()=>{
+    await page.locator('[data-agent-action="new"]').click();await ask('鉴权错误');await page.locator('#agent-send:not([disabled])').waitFor();const before=requests.length;await page.locator('[data-agent-retry]').click();await page.locator('#agent-send:not([disabled])').waitFor();assert.equal(requests.length,before+1);assert.equal(requests.at(-1).body.messages.filter(m=>m.role==='user').length,1);assert.equal(await page.locator('.agent-error').count(),2);
+  });
+  await check('a successful answer survives a history storage failure without offering a duplicate paid request',async()=>{
+    await page.locator('[data-agent-action="new"]').click();
+    await page.evaluate(()=>{const original=IDBObjectStore.prototype.put;window.__historyWriteCount=0;IDBObjectStore.prototype.put=function(value,...args){if(this.name==='settings'&&value?.key==='agentChatHistory'&&++window.__historyWriteCount===2)throw new DOMException('Synthetic storage failure','QuotaExceededError');return original.call(this,value,...args);};});
+    await ask('验证保存失败仍保留回答');await page.locator('#agent-status').filter({hasText:'回答已生成，但历史保存失败'}).waitFor();await page.locator('#agent-send:not([disabled])').waitFor();assert.equal(await page.locator('.agent-assistant').count(),1);assert.equal(await page.locator('[data-agent-retry]').count(),0);assert.equal(await page.locator('[data-agent-copy]').count(),1);
   });
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:checks.length,checks,pageErrors:errors,mockRequests:requests.length},null,2));
 }
