@@ -23,7 +23,7 @@ export function filterCatalog(papers, state, notes = {}, metrics = []) {
   const f = state.filters || {}, q = String(state.query || '').toLocaleLowerCase().trim();
   const tokens = [...q.matchAll(/"([^"]+)"|(\S+)/g)].map(m => m[1] || m[2]);
   const eligible = eligibleTags(papers);
-  const noteText = p => [p.notes || '', ...(notes[`paper:${p.id}`] || []).map(n => n.body), ...p.tags.flatMap(tag => (notes[`tag:${tag}`] || []).map(n => n.body))].join(' ');
+  const noteText = p => [p.notes || '', ...(notes[`paper:${p.id}`] || []).map(n => [n.anchor?.label,n.body,...(n.attachments||[]).map(image=>image.name)].join(' ')), ...p.tags.flatMap(tag => (notes[`tag:${tag}`] || []).map(n => n.body))].join(' ');
   let result = papers.filter(p => {
     if (f.parameterName && !hasParameter(p, f.parameterName, f.parameterUnit ?? '*')) return false;
     if (state.hiddenIds?.has(p.id) || f.excludeTags?.some(tag => p.tags.includes(tag))) return false;

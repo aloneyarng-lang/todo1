@@ -1,3 +1,4 @@
+import { normalizeNotes } from './note-model.js';
 import { normalizeAuthors, numericImpact, parseMetrics, mergeMetrics } from './catalog.js';
 import { normalizeMeasurements } from './parameters.js';
 import { takeRemoval, restoreRemoval } from './removal.js';
@@ -6,6 +7,8 @@ export const DB_NAME = 'materia-library-v1';
 export const BACKUP_FORMAT = 'materia-backup';
 let connection;
 const native = globalThis.materiaDesktop;
+let richNoteSupport;
+async function assertRichNoteSupport(value){const notes=Object.values(value||{}).filter(Array.isArray).flat();if(native&&notes.some(note=>note.anchor||note.attachments?.length)){richNoteSupport ||= native.info();const info=await richNoteSupport;if(Number(info.readerNotesVersion)<1||!info.readerNotesVersion)throw new Error('请关闭并重新打开 Materia，再保存带标记或图片的笔记；当前桌面存储接口仍是旧版。');if(notes.some(note=>note.anchor&&(note.anchor.kind||note.anchor.label!==undefined))&&!info.readerAnnotationsVersion)throw new Error('请重新启动 Materia 以启用文字和箭头标注；当前标注仍保留在编辑区。');}}
 async function nativePapers(papers) {
   const output = [];
   for (const paper of papers) {
@@ -48,7 +51,7 @@ export const putPaper = async paper => native ? native.putPapers(await nativePap
 export const putPapers = async papers => native ? native.putPapers(await nativePapers(papers)) : transaction('papers', 'readwrite', store => { for (const paper of papers) store.put(paper); });
 export const deletePaper = id => native ? native.deletePaper(id) : transaction('papers', 'readwrite', store => store.delete(id));
 export const getSetting = async key => native ? native.getSetting(key) : (await transaction('settings', 'readonly', store => store.get(key)))?.value;
-export const setSetting = (key, value) => native ? native.setSetting(key, value) : transaction('settings', 'readwrite', store => store.put({ key, value }));
+export const setSetting = async (key, value) => { if(key==='notes'){value=normalizeNotes(value);await assertRichNoteSupport(value);}if(key==='readerDrafts')await assertRichNoteSupport({drafts:(value||[]).map(row=>row.note)});return native ? native.setSetting(key, value) : transaction('settings', 'readwrite', store => store.put({ key, value })); };
 
 async function removalTransaction(batchId, run) {
   const db = await openDatabase();
@@ -169,16 +172,13 @@ export function readBackup(value) {
       file, size: file?.size || 0,
     };
   });
-  const notes = {};
-  if (value.notes && typeof value.notes === 'object') for (const [key, list] of Object.entries(value.notes)) {
-    if ((!key.startsWith('paper:') && !key.startsWith('tag:')) || !Array.isArray(list)) continue;
-    notes[key] = list.filter(n => n && typeof n.id === 'string' && typeof n.body === 'string').map(n => ({ id: n.id.slice(0, 120), body: n.body.slice(0, 40000), createdAt: Number(n.createdAt) || Date.now(), updatedAt: Number(n.updatedAt) || Date.now() }));
-  }
+  const notes = normalizeNotes(value.notes || {});
   const journalMetrics = Array.isArray(value.journalMetrics) && value.journalMetrics.length ? parseMetrics(JSON.stringify(value.journalMetrics)) : [];
   return { collections, papers, notes, journalMetrics };
 }
 
 export async function mergeBackup(backup) {
+  await assertRichNoteSupport(backup.notes);
   if (native) return native.mergeBackup({ ...backup, papers: await nativePapers(backup.papers) });
   const db = await openDatabase();
   // A single transaction makes restored files and folders succeed or fail together.

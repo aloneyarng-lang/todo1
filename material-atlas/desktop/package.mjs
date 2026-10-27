@@ -1,5 +1,5 @@
 import { packager } from '@electron/packager';
-import { mkdir, copyFile, writeFile } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, cp } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeIcon } from './icon.mjs';
@@ -8,9 +8,10 @@ const stage = path.join(root, '.local', 'desktop-stage-v12');
 const iconPath = await makeIcon();
 await mkdir(path.join(stage, 'dist'), { recursive: true });
 await mkdir(path.join(stage, 'desktop'), { recursive: true });
-for (const file of ['index.html', 'app.js', 'styles.css', 'workspace.css', 'figures.css', 'themes.css', 'themes.js', 'graph.js', 'graph-view.js', 'force-layout.js', 'graph-settings.js', 'associations.js', 'tags.js', 'removal.js', 'bulk-edit.js', 'journal-data.js', 'storage.js', 'palette.js', 'notes.js', 'note-links.js', 'catalog.js', 'parameters.js', 'parameter-index.js', 'chart-data.js', 'figure.js', 'markdown.js', 'import-plan.js', 'example-migration.js', 'batch-import.js', 'comparison.js', 'comparison-ui.js', 'performance-editor.js', 'favicon.svg']) await copyFile(path.join(root, 'dist', file), path.join(stage, 'dist', file));
+for (const file of ['index.html', 'app.js', 'styles.css', 'workspace.css', 'figures.css', 'themes.css', 'themes.js', 'reader.js', 'reader-ui.js', 'reader-annotations.js', 'reader-annotations.css', 'reader-layout.js', 'reader.css', 'note-model.js', 'note-media.js', 'graph.js', 'graph-view.js', 'force-layout.js', 'graph-settings.js', 'associations.js', 'tags.js', 'removal.js', 'bulk-edit.js', 'paper-actions.js', 'paper-actions.css', 'journal-data.js', 'storage.js', 'palette.js', 'notes.js', 'note-links.js', 'catalog.js', 'parameters.js', 'parameter-index.js', 'chart-data.js', 'figure.js', 'markdown.js', 'import-plan.js', 'example-migration.js', 'batch-import.js', 'comparison.js', 'comparison-ui.js', 'performance-editor.js', 'favicon.svg']) await copyFile(path.join(root, 'dist', file), path.join(stage, 'dist', file));
 await mkdir(path.join(stage, 'dist', 'vendor'), {recursive:true});
 for (const file of ['echarts.min.js','ECHARTS-LICENSE.txt']) await copyFile(path.join(root,'dist','vendor',file),path.join(stage,'dist','vendor',file));
+await cp(path.join(root,'dist/vendor/pdfjs'),path.join(stage,'dist/vendor/pdfjs'),{recursive:true});
 for (const file of ['main.mjs', 'preload.cjs', 'library.mjs', 'materia.ico']) await copyFile(path.join(root, 'desktop', file), path.join(stage, 'desktop', file));
 await writeFile(path.join(stage, 'package.json'), JSON.stringify({ name: 'materia-desktop', productName: 'Materia', version: '1.2.0', type: 'module', main: 'desktop/main.mjs', description: '材料文献星图 · Markdown 批量导入与性能对比' }, null, 2));
 const paths = await packager({ dir: stage, name: 'Materia', executableName: 'Materia', platform: 'win32', arch: 'x64', out: path.join(root, 'release', 'v1.2.0'), overwrite: false, asar: false, prune: false, icon: iconPath, electronVersion: '45.0.0', win32metadata: { CompanyName: 'Materia', FileDescription: 'Materia · 材料文献星图', ProductName: 'Materia' } });

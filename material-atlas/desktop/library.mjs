@@ -1,3 +1,4 @@
+import { normalizeNotes, cleanReaderState, cleanReaderDrafts } from '../dist/note-model.js';
 import { mkdir, readFile, writeFile, rename, copyFile, stat, access } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -22,14 +23,7 @@ export function resolveInside(root, relative) {
 export function cleanTags(value) {
   return [...new Set((Array.isArray(value) ? value : []).filter(t => typeof t === 'string').map(t => t.trim().slice(0, 80)).filter(Boolean))].slice(0, 30);
 }
-export function cleanNotes(value = {}) {
-  const result = {};
-  for (const [key, notes] of Object.entries(value)) {
-    if ((!key.startsWith('paper:') && !key.startsWith('tag:')) || key.length > 1500 || !Array.isArray(notes)) continue;
-    result[key] = notes.filter(n => n && typeof n.id === 'string' && typeof n.body === 'string').map(n => ({ id: n.id.slice(0, 120), body: n.body.slice(0, 40000), createdAt: Number(n.createdAt) || Date.now(), updatedAt: Number(n.updatedAt) || Date.now() }));
-  }
-  return result;
-}
+export const cleanNotes = normalizeNotes;
 
 export class LocalLibrary {
   constructor(root) { this.root = path.resolve(root); this.queue = Promise.resolve(); }
@@ -73,7 +67,9 @@ export class LocalLibrary {
   getPapers() { return this.data.papers.map(p => ({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
-    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences'].includes(key)) throw new Error('不支持的文献库设置。');
+    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts'].includes(key)) throw new Error('不支持的文献库设置。');
+    if(key==='readerDrafts')value=cleanReaderDrafts(value);
+    if(key==='readerState')value=cleanReaderState(value);
     if(key==='themePreferences')value=cleanThemePreferences(value);
     if(key==='graphPreferences')value=cleanGraphSettings(value);
     if(key==='graphAssociations')value=cleanAssociations(value);
@@ -174,6 +170,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes };
+    return { path: this.root, papers: this.data.papers.length, bytes, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1 };
   }
 }

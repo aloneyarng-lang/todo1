@@ -8,15 +8,15 @@ export function planBulkEdit(papers, collections, ids, options, newId) {
   const tags = [...new Set((options.tags || []).map(tag => tag.trim()).filter(Boolean))];
   if (tags.some(tag => tag.length > 80)) throw new Error('每个标签最多 80 个字符。');
   if (['append', 'remove'].includes(tagMode) && !tags.length) throw new Error('请填写要添加或移除的标签。');
-  if (tagMode === 'keep' && groupMode === 'keep') throw new Error('请选择标签或分组的修改方式。');
+  if (tagMode === 'keep' && groupMode === 'keep') throw new Error('请选择标签或收藏夹的修改方式。');
   let collection = null, target = options.collection || '';
   if (groupMode === 'new') {
     const name = String(options.groupName || '').trim();
-    if (!name || name.length > 80) throw new Error('请填写 1–80 个字符的分组名称。');
+    if (!name || name.length > 80) throw new Error('请填写 1–80 个字符的收藏夹名称。');
     collection = collections.find(item => item.name === name) || { id: newId, name, color: '#397d78' };
     target = collection.id;
   }
-  if (groupMode === 'set' && target && !collections.some(item => item.id === target)) throw new Error('目标分组已不存在。');
+  if (groupMode === 'set' && target && !collections.some(item => item.id === target)) throw new Error('目标收藏夹已不存在。');
   const updates = [];
   for (const paper of papers) if (selected.has(paper.id)) {
     const previousTags = paper.tags || [];
@@ -31,12 +31,12 @@ export function planBulkEdit(papers, collections, ids, options, newId) {
 export function createBulkEditor(config) {
   const esc = config.escape, $ = selector => document.querySelector(selector);
   let ids = [], pending = null, busy = false;
-  function open(values = null) {
-    ids = [...config.getSelection()]; pending = null;
+  function open(values = null, targetIds = null) {
+    ids = [...(targetIds || config.getSelection())]; pending = null;
     const papers = config.getPapers().filter(paper => ids.includes(paper.id));
     if (!papers.length) { config.toast('请先在文献列表中勾选多篇文献。'); return; }
     const common = (papers[0].tags || []).filter(tag => papers.every(paper => paper.tags.includes(tag)));
-    config.showModal('批量修改标签与分组', `${papers.length} 篇选中文献 · 可同时修改标签和分组`, `<form id="bulk-edit-form"><div class="bulk-common"><span>共同标签</span>${common.map(tag => `<span class="tag">${esc(tag)}</span>`).join('') || '<small>暂无共同标签</small>'}</div><div class="bulk-edit-grid"><label class="form-field">标签操作<select name="tagMode"><option value="keep">保持原标签</option><option value="append">追加标签</option><option value="remove">移除指定标签</option><option value="replace">替换全部标签</option></select></label><label class="form-field">标签名称<input name="tags" maxlength="2500" placeholder="用逗号分隔多个标签"><small>追加保留原标签；替换会覆盖所选文献的全部标签，留空则清空。</small></label><label class="form-field">目标分组 / 收藏夹<select name="group"><option value="__keep__">保持原分组</option><option value="__none__">移出分组</option>${config.getCollections().map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}<option value="__new__">＋ 新建分组并移入</option></select></label><label class="form-field" id="bulk-group-name-field" hidden>新分组名称<input name="groupName" maxlength="80" placeholder="例如：高熵合金 · 强化机制"></label></div><p class="help-inline">仅修改选中文献的标签和分组，笔记、作者、性能参数及 PDF 保留。</p><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">预览修改</button></div></form>`, 'bulk-edit');
+    config.showModal('批量修改标签与收藏夹', `${papers.length} 篇选中文献 · 可同时修改标签和收藏夹`, `<form id="bulk-edit-form"><div class="bulk-common"><span>共同标签</span>${common.map(tag => `<span class="tag">${esc(tag)}</span>`).join('') || '<small>暂无共同标签</small>'}</div><div class="bulk-edit-grid"><label class="form-field">标签操作<select name="tagMode"><option value="keep">保持原标签</option><option value="append">追加标签</option><option value="remove">移除指定标签</option><option value="replace">替换全部标签</option></select></label><label class="form-field">标签名称<input name="tags" maxlength="2500" placeholder="用逗号分隔多个标签"><small>追加保留原标签；替换会覆盖所选文献的全部标签，留空则清空。</small></label><label class="form-field">目标收藏夹<select name="group"><option value="__keep__">保持原收藏夹</option><option value="__none__">移出收藏夹</option>${config.getCollections().map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}<option value="__new__">＋ 新建收藏夹并移入</option></select></label><label class="form-field" id="bulk-group-name-field" hidden>新收藏夹名称<input name="groupName" maxlength="80" placeholder="例如：高熵合金 · 强化机制"></label></div><p class="help-inline">仅修改选中文献的标签和收藏夹，笔记、作者、性能参数及 PDF 保留。</p><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">预览修改</button></div></form>`, 'bulk-edit');
     if (values) {
       $('#bulk-edit-form [name=tagMode]').value = values.tagMode;
       $('#bulk-edit-form [name=tags]').value = values.tags.join('，');
@@ -49,9 +49,9 @@ export function createBulkEditor(config) {
     const fields = new FormData(form), group = fields.get('group');
     pending = { tagMode: fields.get('tagMode'), tags: [...new Set(String(fields.get('tags') || '').split(/[,，;；\n]+/).map(tag=>tag.trim()).filter(Boolean))], groupMode: group === '__keep__' ? 'keep' : group === '__new__' ? 'new' : 'set', collection: group === '__none__' ? '' : group, groupName: fields.get('groupName') };
     const plan = planBulkEdit(config.getPapers(), config.getCollections(), ids, pending, 'preview-new-group');
-    if (!plan.updates.length) { config.toast('选中文献已经符合这些标签和分组，无需修改。'); return; }
-    const groupName = value => config.getCollections().find(item => item.id === value)?.name || (value === 'preview-new-group' ? pending.groupName : '未分组');
-    config.showModal('确认批量修改', `${plan.updates.length} 篇文献将更新 · ${ids.length - plan.updates.length} 篇保持原样`, `<div class="bulk-preview">${plan.updates.map(paper => { const previous = config.getPapers().find(item => item.id === paper.id); return `<article><strong>${esc(paper.title)}</strong><div><span>标签</span><del>${esc(previous.tags.join(' · ') || '无')}</del><b>→</b><ins>${esc(paper.tags.join(' · ') || '清空全部标签')}</ins></div><div><span>分组</span><del>${esc(groupName(previous.collection))}</del><b>→</b><ins>${esc(groupName(paper.collection))}</ins></div></article>`; }).join('')}</div><div class="modal-footer"><button class="text-button" data-bulk-action="back">返回修改</button><button class="primary" data-bulk-action="save">确认保存 ${plan.updates.length} 篇</button></div>`, 'bulk-edit');
+    if (!plan.updates.length) { config.toast('选中文献已经符合这些标签和收藏夹，无需修改。'); return; }
+    const groupName = value => config.getCollections().find(item => item.id === value)?.name || (value === 'preview-new-group' ? pending.groupName : '未收藏夹');
+    config.showModal('确认批量修改', `${plan.updates.length} 篇文献将更新 · ${ids.length - plan.updates.length} 篇保持原样`, `<div class="bulk-preview">${plan.updates.map(paper => { const previous = config.getPapers().find(item => item.id === paper.id); return `<article><strong>${esc(paper.title)}</strong><div><span>标签</span><del>${esc(previous.tags.join(' · ') || '无')}</del><b>→</b><ins>${esc(paper.tags.join(' · ') || '清空全部标签')}</ins></div><div><span>收藏夹</span><del>${esc(groupName(previous.collection))}</del><b>→</b><ins>${esc(groupName(paper.collection))}</ins></div></article>`; }).join('')}</div><div class="modal-footer"><button class="text-button" data-bulk-action="back">返回修改</button><button class="primary" data-bulk-action="save">确认保存 ${plan.updates.length} 篇</button></div>`, 'bulk-edit');
   }
   document.addEventListener('change', event => { if (event.target.matches('#bulk-edit-form [name=group]')) $('#bulk-group-name-field').hidden = event.target.value !== '__new__'; });
   document.addEventListener('submit', event => {
@@ -60,10 +60,10 @@ export function createBulkEditor(config) {
   });
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-bulk-action]'); if (!button || busy) return;
-    if (button.dataset.bulkAction === 'back') { open(pending); return; }
+    if (button.dataset.bulkAction === 'back') { open(pending,ids); return; }
     if (button.dataset.bulkAction !== 'save' || !pending) return;
     button.disabled = true; busy = true;
-    try { const result = await config.save(ids, pending); await config.reload(); busy = false; config.done(); config.toast(`已批量更新 ${result.count} 篇文献的标签与分组。`); }
+    try { const result = await config.save(ids, pending); await config.reload(); busy = false; config.done(); config.toast(`已批量更新 ${result.count} 篇文献的标签与收藏夹。`); }
     catch (error) { config.toast(`批量修改未完成：${error.message}`, true); }
     finally { busy = false; button.disabled = false; }
   });
