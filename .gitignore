@@ -16,3 +16,25 @@ test-results/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Credentials, desktop preferences and personal research data
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+credentials*.json
+secrets*.json
+ai-agent.json
+ai-chats*.json
+library.json
+library.previous.json
+preferences.json
+desktop-profile/
+文献库/
+papers/
+backups/
+.trash/
+*.log

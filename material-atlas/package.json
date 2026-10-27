@@ -11,13 +11,16 @@
     "build:exe": "node desktop/package.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
-    "verify:ui": "node scripts/verify-ui.cjs"
+    "verify:ui": "node scripts/verify-ui.cjs",
+    "verify:agent": "node scripts/verify-agent.cjs",
+    "verify:agent-desktop": "electron scripts/verify-agent-desktop.mjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
     "electron": "45.0.0"
   },
   "dependencies": {
-    "echarts": "6.1.0"
+    "echarts": "6.1.0",
+    "markdown-it": "^15.0.3"
   }
 }
