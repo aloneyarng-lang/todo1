@@ -1,5 +1,5 @@
 import { createNetwork, stepNetwork, networkSnapshot, cleanLayout } from './force-layout.js';
-import { GRAPH_DEFAULTS, cleanGraphSettings, placeNodeLabels } from './graph-settings.js';
+import { GRAPH_DEFAULTS, cleanGraphSettings, placeNodeLabels,fitGraphViewport } from './graph-settings.js';
 import { PALETTE } from './palette.js';
 import { ASSOCIATION_KINDS } from './associations.js';
 
@@ -14,16 +14,17 @@ const el = (name, attrs = {}, text) => {
 export class StarMap {
   constructor(svg, callbacks) {
     Object.assign(this, callbacks);
-    this.svg = svg; this.scale = 1; this.x = 0; this.y = 0;
+    this.svg = svg; this.scale = 1; this.x = 0; this.y = 0;this.viewHeight=620;this.labelPositions=new Map();
     this.cache = {}; this.nodes = []; this.selected = ''; this.paused = false; this.preferences={...GRAPH_DEFAULTS};this.collections=[];
     this.bindInput();
     this.labelCanvas=document.createElement('canvas').getContext('2d');this.labelWidths=new Map();
-    this.resizeObserver=new ResizeObserver(()=>this.placeLabels());this.resizeObserver.observe(svg);
+    this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.transform();});this.resizeObserver.observe(svg);
   }
   configure(value,collections=[],associations=[]){this.preferences=cleanGraphSettings(value);this.collections=collections;this.associations=associations;}
   setLayout(value) { cancelAnimationFrame(this.frame); this.network = null; const normalized=cleanLayout(value),legacy=Object.keys(normalized).some(key=>key.startsWith('tag:'));this.cache=Object.fromEntries(Object.entries(normalized).filter(([key,point])=>key.startsWith('relation:')||key.startsWith('paper:')&&(!legacy||point.pinned))); }
   setData(papers, selected, allGroups = []) {
     cancelAnimationFrame(this.frame);
+    this.frame=null;const first=!this.network;this.drag=null;this.svg.classList.remove('dragging');this.labelPositions.clear();
     if (this.network) Object.assign(this.cache, networkSnapshot(this.network));
     this.papers = papers.slice(0, 350); this.selected = selected; this.groups = allGroups;
     this.network = createNetwork(this.papers, this.groups, this.cache,this.preferences.showRelations?this.associations:[]);
@@ -35,22 +36,20 @@ export class StarMap {
     this.edgeLayer.style.display = this.options?.showEdges === false ? 'none' : '';
     this.viewport.append(this.edgeLayer);
     this.edgeNodes = this.network.edges.map(edge => {
-      const path = el('path', { fill: 'none', stroke: edge.target.color, 'stroke-width': .8, opacity: .18, 'vector-effect': 'non-scaling-stroke' });
+      const path = el('path', { fill: 'none', stroke: 'var(--muted)', 'stroke-width': .8, opacity: .18, 'vector-effect': 'non-scaling-stroke' });
       this.edgeLayer.append(path); return { ...edge, path };
     });
     this.nodeLayer = el('g'); this.viewport.append(this.nodeLayer);
     this.nodes = this.network.nodes.map(node => {
       const isTag = node.type === 'relation', name = isTag ? node.tag : node.paper.title;
       const group = el('g', { class: `graph-node ${isTag ? 'relation-node relation-'+node.kind : 'paper-node'}`, tabindex: 0, role: 'button', 'aria-label': isTag ? `${ASSOCIATION_KINDS[node.kind]}关联 ${name}` : name, 'data-node-id': node.id, ...(isTag ? { 'data-association-id': node.id } : { 'data-paper-id': node.paper.id }) });
-      group.append(el('title', {}, `${name}\n拖动后固定位置，双击释放${isTag ? '；点击查看匹配，右键移除此关联节点' : '；右键隐藏此文献'}`));
+      group.style.setProperty('--node-color',node.color);
+      group.append(el('title', {}, `${name}\n拖动牵引，Shift 拖动固定，双击或 P 释放${isTag ? '；点击查看匹配，右键移除此关联节点' : '；右键隐藏此文献'}`));
       group.append(el('circle',{r:Math.max(14,node.radius+5),fill:'transparent',class:'node-hit-area'}));
-      const halo = el('circle', { r: node.radius + 13, fill: node.color, opacity: .015, 'pointer-events': 'none' });
-      const ring = el('circle', { r: node.radius + 5, fill: 'none', stroke: node.color, 'stroke-width': .8, opacity: .3, class: 'node-ring' });
-      const coreShape = isTag&&node.kind==='year'?'path':isTag&&node.kind==='institution'?'rect':'circle';
-      const geometry=coreShape==='path'?{d:`M0 ${-node.radius}L${node.radius} 0L0 ${node.radius}L${-node.radius} 0Z`}:coreShape==='rect'?{x:-node.radius,y:-node.radius,width:node.radius*2,height:node.radius*2,rx:3}:{r:node.radius};
-      const core = el(coreShape, { ...geometry, fill: isTag ? '#fcfdf9' : node.color, stroke: isTag ? node.color : '#fff', 'stroke-width': isTag ? 1.6 : 1.8, class: 'node-core' });
-      group.append(halo, ring, core);
-      if (isTag) group.append(el('circle', { r: 2.5, fill: node.color }));
+      const ring = el('circle', { r: node.radius + 3, fill: 'none', stroke: node.color, 'stroke-width': .8, opacity: .3, class: 'node-ring' });
+      const core = el('circle', { r:node.radius, fill: node.color, stroke: 'var(--canvas)', 'stroke-width': isTag ? 1.6 : 1.8, class: 'node-core' });
+      group.append(ring, core);
+      // Association nodes share the same simple circular silhouette.
       const label = el('text', { x: 0, y: node.radius + 20, 'text-anchor': 'middle', class: isTag ? 'tag-node-label' : 'node-label' }, name.length > (isTag ? 22 : 40) ? name.slice(0, isTag ? 21 : 38) + '…' : name);
       group.append(label);
 
@@ -69,10 +68,10 @@ export class StarMap {
       });
       group.addEventListener('pointerleave', () => { this.highlight(this.selected); this.onHover(null); });
       this.nodeLayer.append(group);
-      return { ...node, node, paper: node.paper, group, halo, ring, core, label, pin };
+      return { ...node, node, paper: node.paper, group, ring, core, label, pin };
     });
-    if (!Object.keys(this.cache).length) for (let i = 0; i < 55; i++) stepNetwork(this.network, .8,this.preferences);
-    this.paint(); this.highlight(selected); this.transform(); this.start(.65);
+    if (first) for (let i = 0; i < 75; i++) stepNetwork(this.network, .8,this.preferences);
+    this.paint(); this.highlight(selected);if(first)this.fit();else this.transform(); this.start(.6);
     this.onStats?.({ papers: this.papers.length, tags: this.network.nodes.filter(node => node.type === 'relation').length, edges: this.network.edges.length, omittedTags: this.network.omittedTags });
   }
   paint() {
@@ -80,24 +79,36 @@ export class StarMap {
       const node = item.node;
       item.group.setAttribute('transform', `translate(${node.x.toFixed(2)} ${node.y.toFixed(2)})`);
       item.group.classList.toggle('pinned', Boolean(node.pinned)); item.pin.style.display = node.pinned ? '' : 'none';
-      node.fog?.setAttribute('cx', node.x); node.fog?.setAttribute('cy', node.y);
     }
     this.placeLabels();
     for (const edge of this.edgeNodes) {
       const a = edge.source, b = edge.target;
-      edge.path.setAttribute('d', `M${a.x},${a.y} Q${(a.x + b.x) / 2 + (a.y - b.y) * .04},${(a.y + b.y) / 2} ${b.x},${b.y}`);
+      const dx=b.x-a.x,dy=b.y-a.y,d=Math.max(1,Math.hypot(dx,dy)),ux=dx/d,uy=dy/d,start={x:a.x+ux*(a.radius+3),y:a.y+uy*(a.radius+3)},end={x:b.x-ux*(b.radius+3),y:b.y-uy*(b.radius+3)};
+      edge.path.setAttribute('d',`M${start.x},${start.y} L${end.x},${end.y}`);
     }
   }
   start(alpha = .5) {
-    cancelAnimationFrame(this.frame);
     if (this.paused || !this.network || !this.network.nodes.length) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { this.paint(); this.saveLayout(); return; }
-    let heat = alpha, count = 0;
-    const tick = () => {
-      if (this.paused) return;
-      stepNetwork(this.network, heat,this.preferences); this.paint(); heat *= .96;
-      if ((heat > .018 || this.drag?.node) && ++count < 220) this.frame = requestAnimationFrame(tick);
-      else this.saveLayout();
+    this.heat=Math.max(this.heat||0,alpha);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cancelAnimationFrame(this.frame);this.frame=null;
+      for(let i=0;i<35;i++)stepNetwork(this.network,.35,this.preferences);
+      this.heat=0;for(const node of this.network.nodes){node.vx=0;node.vy=0;}
+      this.paint();this.saveLayout();return;
+    }
+    if(this.frame)return;
+    let previous=0,quiet=0;const network=this.network;
+    const tick = time => {
+      this.frame=null;if (this.paused||this.network!==network)return;
+      if(matchMedia('(prefers-reduced-motion: reduce)').matches){this.heat=0;for(const node of network.nodes){node.vx=0;node.vy=0;}this.saveLayout();return;}
+      const dt=previous?Math.max(.25,Math.min(2,(time-previous)/16.667)):1;previous=time;
+      const held=Boolean(this.drag?.node);
+      // Holding keeps the entire force simulation warm, even without pointer movement.
+      this.heat=held?.3:this.heat*Math.pow(.9772,dt);
+      const movement=stepNetwork(network,this.heat,this.preferences,dt)/Math.max(1,network.nodes.length);
+      this.paint();quiet=movement<.025?quiet+1:0;
+      if(held||this.heat>.001||quiet<18)this.frame=requestAnimationFrame(tick);
+      else{this.heat=0;for(const node of network.nodes){node.vx=0;node.vy=0;}this.saveLayout();}
     };
     this.frame = requestAnimationFrame(tick);
   }
@@ -105,8 +116,13 @@ export class StarMap {
     if (!this.network) return;
     Object.assign(this.cache, networkSnapshot(this.network)); this.onLayout?.(cleanLayout(this.cache));
   }
-  toggleMotion() { this.paused = !this.paused; if (this.paused) { cancelAnimationFrame(this.frame); this.saveLayout(); } else this.start(.6); return !this.paused; }
-  relayout() { this.cache = {}; this.network = null; this.setData(this.papers, this.selected, this.groups); this.saveLayout(); }
+  toggleMotion() { this.paused = !this.paused; if (this.paused) { cancelAnimationFrame(this.frame);this.frame=null;this.heat=0;this.saveLayout(); } else this.start(.6); return !this.paused; }
+  releasePins() {
+    for(const position of Object.values(this.cache))position.pinned=false;
+    for(const node of this.network?.nodes||[]){node.pinned=false;node.fx=null;node.fy=null;}
+    this.paint();this.saveLayout();this.start(.3);
+  }
+  relayout() {this.saveLayout();this.cache=Object.fromEntries(Object.entries(this.cache).filter(([,point])=>point.pinned));this.network=null;this.setData(this.papers,this.selected,this.groups);this.saveLayout();}
   select(id) { this.selected = id; this.highlight(id); }
   highlight(id) { this.highlightNode(id?'paper:'+id:''); }
   highlightNode(key) {
@@ -114,16 +130,16 @@ export class StarMap {
     if(active?.type==='relation')tagIds.add(active.id);
     else if(active)for(const edge of this.network.edges)if(edge.source.id===active.id)tagIds.add(edge.target.id);
     for(const edge of this.network?.edges||[])if(tagIds.has(edge.target.id)){this.relatedIds.add(edge.target.id);this.relatedIds.add(edge.source.id);}
-    for(const item of this.nodes){const chosen=item.node.id===key;item.group.setAttribute('opacity',!key||chosen||!tagIds.size?1:this.relatedIds.has(item.node.id)?.82:.23);item.group.setAttribute('aria-pressed',String(item.node.type==='paper'&&item.node.paper.id===this.selected));item.ring.setAttribute('opacity',chosen?.8:item.node.pinned?.4:.12);item.halo.setAttribute('opacity',chosen?.065:.008);}
-    for(const edge of this.edgeNodes){const adjacent=edge.source.id===key||edge.target.id===key;edge.path.setAttribute('opacity',!key||!tagIds.size?.18:adjacent?.62:tagIds.has(edge.target.id)?.12:.035);edge.path.setAttribute('stroke-width',(adjacent?1.5:.8)*this.preferences.linkWidth);}
+    for(const item of this.nodes){const chosen=item.node.id===key;item.group.classList.toggle('is-active',chosen);item.group.setAttribute('opacity',!key||chosen||!tagIds.size?1:this.relatedIds.has(item.node.id)?.9:.32);item.group.setAttribute('aria-pressed',String(item.node.type==='paper'&&item.node.paper.id===this.selected));item.ring.setAttribute('opacity',chosen?.8:0);}
+    for(const edge of this.edgeNodes){const adjacent=edge.source.id===key||edge.target.id===key;edge.path.setAttribute('stroke',adjacent?'var(--teal)':'var(--muted)');edge.path.setAttribute('opacity',!key||!tagIds.size?.2:adjacent?.68:tagIds.has(edge.target.id)?.16:.045);edge.path.setAttribute('stroke-width',(adjacent?1.15:.65)*this.preferences.linkWidth);}
     this.placeLabels();
   }
   placeLabels(){
     if(!this.network)return;
-    const bounds=this.svg.getBoundingClientRect(),viewportScale=Math.min(bounds.width/1000,bounds.height/620)||1;
+    const bounds=this.svg.getBoundingClientRect(),viewportScale=Math.min(bounds.width/1000,bounds.height/this.viewHeight)||1;
     const family=getComputedStyle(this.svg).fontFamily,measureText=(text,font)=>{const key=font.toFixed(4)+'|'+text;if(!this.labelWidths.has(key)){this.labelCanvas.font=`${font}px ${family}`;this.labelWidths.set(key,this.labelCanvas.measureText(text).width);}return this.labelWidths.get(key);};
     if(this.labelWidths.size>10000)this.labelWidths.clear();
-    const positions=placeNodeLabels(this.network.nodes,{scale:this.scale,viewportScale,measureText,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.preferences.labelThreshold});
+    const positions=placeNodeLabels(this.network.nodes,{scale:this.scale,viewportScale,measureText,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.preferences.labelThreshold,viewHeight:this.viewHeight,previous:this.labelPositions});this.labelPositions=positions;
     for(const item of this.nodes)item.group.querySelector('.node-hit-area').setAttribute('r',Math.max(item.node.radius+5,11/(this.scale*viewportScale)));
     for(const item of this.nodes){const placed=positions.get(item.node.id);item.label.style.opacity=placed?String(placed.opacity):'0';item.label.setAttribute('aria-hidden',String(!placed));if(!placed)continue;item.label.setAttribute('x',placed.x);item.label.setAttribute('y',placed.y);item.label.setAttribute('text-anchor','start');item.label.style.fontSize=placed.font+'px';const text=placed.lines.join('|');if(item.label.dataset.lines!==text){item.label.replaceChildren(...placed.lines.map((line,index)=>el('tspan',{x:placed.x,dy:index?placed.font*1.35:0},line)));item.label.dataset.lines=text;}else for(const [index,span]of [...item.label.children].entries()){span.setAttribute('x',placed.x);span.setAttribute('dy',index?placed.font*1.35:0);}}
   }
@@ -136,14 +152,14 @@ export class StarMap {
       clearTimeout(this.clickTimer);
       const key = event.target.closest('[data-node-id]')?.dataset.nodeId, node = this.network?.byId.get(key);
       const capture=event.target.closest('[data-node-id]')||this.svg;
-      this.drag = { pointer: event.pointerId, capture, origin: this.point(event), scene: this.scenePoint(event), node, x: node?.x ?? this.x, y: node?.y ?? this.y, moved: false };
-      if (node) { node.dragging = true; this.start(.6); }
+      this.drag = { pointer: event.pointerId, capture, origin: this.point(event), scene: this.scenePoint(event), node, x: node?.x ?? this.x, y: node?.y ?? this.y,pinned:node?.pinned, moved: false };
+      if(node){node.dragging=true;node.vx=0;node.vy=0;this.start(.3);}
       capture.setPointerCapture(event.pointerId); this.svg.classList.add('dragging'); this.onHover(null);
     });
     this.svg.addEventListener('pointermove', event => {
       const drag = this.drag; if (!drag || drag.pointer !== event.pointerId) return;
       const point = this.point(event), dx = point.x - drag.origin.x, dy = point.y - drag.origin.y;
-      if (Math.hypot(dx, dy) > 3) drag.moved = true;
+      if(!drag.moved&&Math.hypot(dx,dy)>3)drag.moved=true;
       if (!drag.moved) return;
       if (drag.node) { drag.node.x = drag.x + dx / this.scale; drag.node.y = drag.y + dy / this.scale; drag.node.vx = 0; drag.node.vy = 0; this.paint(); }
       else { this.x = drag.x + dx; this.y = drag.y + dy; this.transform(); }
@@ -153,18 +169,20 @@ export class StarMap {
       this.drag = null; this.svg.classList.remove('dragging');
       if (drag.capture.hasPointerCapture(event.pointerId)) drag.capture.releasePointerCapture(event.pointerId);
       if (drag.node) {
-        drag.node.dragging = false;
-        if (drag.moved) { drag.node.pinned = true; this.paint(); this.saveLayout(); this.start(.3); }
+        drag.node.dragging=false;drag.node.fx=null;drag.node.fy=null;
+        if(cancel){drag.node.x=drag.x;drag.node.y=drag.y;drag.node.pinned=drag.pinned;drag.node.vx=0;drag.node.vy=0;this.paint();this.start(.2);}
+        else if (drag.moved) { drag.node.pinned = Boolean(drag.pinned||event.shiftKey); this.paint();this.saveLayout();this.start(.3); }
         else if (!cancel) this.clickTimer = setTimeout(() => drag.node.type === 'relation' ? this.onRelation?.(drag.node.id) : this.onSelect(drag.node.paper.id), 260);
       }
     };
     this.svg.addEventListener('pointerup', event => finish(event));
     this.svg.addEventListener('pointercancel', event => finish(event, true));
+    this.svg.addEventListener('lostpointercapture', event => finish(event, true));
   }
-  zoom(factor, point = { x: 500, y: 310 }) {
-    const next = Math.max(.35, Math.min(3.5, this.scale * factor)), ratio = next / this.scale;
+  zoom(factor, point = { x: 500, y: this.viewHeight/2 }) {
+    const next = Math.max(.12, Math.min(3.5, this.scale * factor)), ratio = next / this.scale;
     this.x = point.x - (point.x - this.x) * ratio; this.y = point.y - (point.y - this.y) * ratio; this.scale = next; this.transform();
   }
-  fit() { this.scale = 1; this.x = 0; this.y = 0; this.transform(); }
+  fit() {Object.assign(this,fitGraphViewport(this.network?.nodes||[],1000,this.viewHeight));this.transform();}
   transform() { this.viewport?.setAttribute('transform', `translate(${this.x} ${this.y}) scale(${this.scale})`); this.onZoom?.(Math.round(this.scale * 100)); this.placeLabels(); }
 }

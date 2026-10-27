@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdir,mkdtemp} from 'node:fs/promises';
 import path from 'node:path';
-import {THEME_TOKENS,BUILTIN_THEMES,parseThemeCSS,themeCSS,resolveTheme,cleanThemePreferences,importThemeFiles,removeTheme} from '../dist/themes.js';
+import {THEME_TOKENS,BUILTIN_THEMES,FONT_OPTIONS,parseThemeCSS,themeCSS,resolveTheme,cleanThemePreferences,importThemeFiles,removeTheme} from '../dist/themes.js';
 import {LocalLibrary} from '../desktop/library.mjs';
 
 test('built-in palettes resolve every token and invalid or missing saved selections recover to paper',()=>{
@@ -36,6 +36,21 @@ test('desktop persists chosen CSS theme across reopen while preserving papers, n
   const parent=path.resolve('.local/tests');await mkdir(parent,{recursive:true});const lib=await new LocalLibrary(await mkdtemp(path.join(parent,'themes-'))).init();
   const bytes=Buffer.from('%PDF-1.4\n% theme test\n%%EOF');await lib.putPapers([{id:'paper-a',title:'Preserved title',tags:['Tag'],measurements:[],fileBytes:bytes}]);await lib.setSetting('notes',{'paper:paper-a':[{id:'n',body:'Unchanged note',createdAt:1,updatedAt:1}]});
   const before=structuredClone(lib.getPapers()),notes=structuredClone(lib.getSetting('notes'));
-  const preferences=importThemeFiles({},[{name:'Night.css',text:themeCSS('My Night',resolveTheme({selected:'graphite'}).tokens)}],()=> 'custom-night');await lib.setSetting('themePreferences',preferences);
+  const preferences=importThemeFiles({fonts:{body:'yahei',heading:'times'}},[{name:'Night.css',text:themeCSS('My Night',resolveTheme({selected:'graphite'}).tokens)}],()=> 'custom-night');await lib.setSetting('themePreferences',preferences);
   const reopened=await new LocalLibrary(lib.root).init();assert.deepEqual(reopened.getSetting('themePreferences'),preferences);assert.deepEqual(reopened.getPapers(),before);assert.deepEqual(reopened.getSetting('notes'),notes);assert.deepEqual(Buffer.from(await reopened.readPdf('paper-a')),bytes);
 });
+
+test('font overrides survive palette changes, CSS import and deletion while follow-theme restores each original font stack',()=>{
+  const prefs={selected:'wikipedia',themes:[],fonts:{body:'yahei',heading:'times'}},resolved=resolveTheme(prefs);
+  assert.equal(resolved.tokens['--sans'],FONT_OPTIONS.find(f=>f.id==='yahei').stack);assert.equal(resolved.tokens['--serif'],FONT_OPTIONS.find(f=>f.id==='times').stack);
+  assert.equal(resolveTheme({...prefs,selected:'graphite'}).tokens['--sans'],resolved.tokens['--sans']);
+  const imported=importThemeFiles(prefs,[{name:'Own.css',text:':root{--sans:Custom Sans, sans-serif;--serif:Custom Serif, serif;}'}],()=> 'custom-font');
+  assert.deepEqual(imported.fonts,prefs.fonts);assert.equal(resolveTheme(imported).tokens['--serif'],resolved.tokens['--serif']);
+  assert.deepEqual(removeTheme(imported,'custom-font').fonts,prefs.fonts);
+  assert.equal(resolveTheme({...imported,fonts:{body:'theme',heading:'theme'}}).tokens['--sans'],'Custom Sans, sans-serif');
+  const css=themeCSS(resolved.name,resolved.tokens);assert.equal(parseThemeCSS(css).tokens['--serif'],resolved.tokens['--serif']);
+  assert.deepEqual(cleanThemePreferences({fonts:{body:'unknown',heading:'<script>'}}),{selected:'paper',themes:[]});
+  assert.equal(resolveTheme({selected:'wikipedia'}).tokens['--teal'],'#3366cc');
+});
+
+test('academic purple uses a complete light palette and preserves independent typography choices',()=>{const theme=resolveTheme({selected:'academic-purple',fonts:{body:'yahei',heading:'times'}});assert.equal(theme.name,'学术紫');assert.equal(theme.tokens['--teal'],'#705095');assert.equal(theme.tokens['--theme-mode'],'light');assert.ok(theme.tokens['--sans'].includes('Microsoft YaHei'));assert.ok(theme.tokens['--serif'].includes('Times New Roman'));assert.equal(cleanThemePreferences({selected:'academic-purple'}).selected,'academic-purple');});

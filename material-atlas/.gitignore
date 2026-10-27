@@ -5,3 +5,25 @@ node_modules/
 .local/
 test-results/
 release/
+
+# Keep API configuration, chat history and literature private
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+credentials*.json
+secrets*.json
+ai-agent.json
+ai-chats*.json
+library.json
+library.previous.json
+preferences.json
+desktop-profile/
+文献库/
+papers/
+backups/
+.trash/
+*.log

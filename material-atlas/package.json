@@ -11,13 +11,22 @@
     "build:exe": "node desktop/package.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
-    "verify:ui": "node scripts/verify-ui.cjs"
+    "verify:ui": "node scripts/verify-ui.cjs",
+    "verify:agent": "node scripts/verify-agent.cjs",
+    "verify:agent-desktop": "electron scripts/verify-agent-desktop.mjs",
+    "verify:elastic": "node scripts/verify-elastic.cjs",
+    "verify:global-elastic": "node scripts/verify-global-elastic.cjs",
+    "build:force-vendor": "node scripts/build-force-vendor.mjs",
+    "verify:release-ui": "node scripts/verify-release-ui.cjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "electron": "45.0.0"
+    "electron": "45.0.0",
+    "esbuild": "^0.25.12"
   },
   "dependencies": {
-    "echarts": "6.1.0"
+    "d3-force": "^3.0.0",
+    "echarts": "6.1.0",
+    "markdown-it": "^15.0.3"
   }
 }

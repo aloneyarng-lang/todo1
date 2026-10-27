@@ -1,0 +1,19 @@
+// Launch only a new hidden packaged instance with its own profile and synthetic library.
+const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto'),{spawn}=require('node:child_process'),{pathToFileURL}=require('node:url');
+const {chromium}=require(path.join(process.env.USERPROFILE,'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+(async()=>{
+ const root=path.resolve(__dirname,'..'),output=path.join(root,'.local/release-ui-verification');await fs.mkdir(output,{recursive:true});const run=await fs.mkdtemp(path.join(output,'run-')),profile=path.join(run,'profile'),library=path.join(run,'library');
+ const userCatalog=path.join(root,'release/Materia-win32-x64/文献库/library.json'),hash=buffer=>crypto.createHash('sha256').update(buffer).digest('hex'),before=hash(await fs.readFile(userCatalog));
+ const {LocalLibrary}=await import(pathToFileURL(path.join(root,'desktop/library.mjs')).href),lib=await new LocalLibrary(library).init();
+ await lib.putPapers([{id:'release-ui-paper',title:'界面验证用合成文献',tags:[],authors:'Test fixture',authorDetails:[],filename:'synthetic.pdf',year:'2026',measurements:[],fileBytes:Buffer.from('%PDF-1.4\n% Isolated release UI verification\n%%EOF')}]);await lib.setSetting('themePreferences',{selected:'academic-purple'});
+ const executable=path.join(root,'release/v1.2.0/Materia-win32-x64/Materia.exe'),env={...process.env,MATERIA_HEADLESS:'1',MATERIA_PROFILE_DIR:profile,MATERIA_LIBRARY_DIR:library};delete env.ELECTRON_RUN_AS_NODE;
+ const child=spawn(executable,['--remote-debugging-port=0','--remote-debugging-address=127.0.0.1'],{env,windowsHide:true,stdio:['ignore','ignore','pipe']});let log='',browser;child.stderr.on('data',data=>{log+=data.toString();});
+ try{
+  let port;for(let i=0;i<100;i++){try{port=Number((await fs.readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);if(port)break;}catch{}if(child.exitCode!==null)throw Error('Isolated release exited: '+log);await new Promise(resolve=>setTimeout(resolve,100));}
+  assert.ok(port,'Packaged instance did not expose its isolated debugging port');browser=await chromium.connectOverCDP('http://127.0.0.1:'+port);const context=browser.contexts()[0],page=context.pages()[0];await page.waitForFunction(()=>document.querySelector('.import-main')?.disabled===false);
+  const info=await page.evaluate(()=>materiaDesktop.info());assert.equal(path.resolve(info.path),path.resolve(library));assert.equal(await page.locator('.workspace-ribbon [data-action="ai-agent"] svg.ui-icon').count(),1);
+  await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();if(await page.locator('#agent-settings').getAttribute('open')!==null)await page.locator('#agent-settings>summary').click();await page.locator('[data-menu-toggle="agent-conversation-menu"]').click();assert.equal(await page.locator('#agent-conversation-menu').evaluate(e=>e.matches(':popover-open')),true);await page.keyboard.press('Escape');assert.equal(await page.locator('#ai-agent-panel').isVisible(),true);
+  assert.equal(await page.locator('link[href="./ui-actions.css"]').evaluate(e=>Boolean(e.sheet)),true);assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'academic-purple');await page.screenshot({path:path.join(root,'.local/verification/actions-packaged-desktop.png')});
+  assert.equal(hash(await fs.readFile(userCatalog)),before);const report={passed:true,executable,packagedAssetsLoaded:true,sharedIconAndMenuWork:true,academicPurple:true,isolatedLibrary:true,userLibraryUnchanged:true,visibleWindow:false};await fs.writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+ }finally{await browser?.close();if(child.exitCode===null)child.kill();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

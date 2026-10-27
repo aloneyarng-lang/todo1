@@ -1,0 +1,5 @@
+/* Flat relationship graph: small circles, straight links, progressive labels. */
+#star-map .graph-node{transition:opacity .14s ease}#star-map.dragging .graph-node{transition:none}#star-map .node-core{vector-effect:non-scaling-stroke;stroke-width:.7px}#star-map .node-ring{vector-effect:non-scaling-stroke;stroke-width:1px;stroke-dasharray:none!important;transition:opacity .12s}#star-map .node-halo,#star-map .node-glint,#star-map .network-backdrop{display:none}#star-map .network-edges path{stroke-linecap:round;stroke-linejoin:round;transition:opacity .12s,stroke .12s}#star-map .graph-node .node-label,#star-map .graph-node .tag-node-label{stroke-width:3px;font-weight:400}#star-map .graph-node.is-active .node-label,#star-map .graph-node.is-active .tag-node-label{fill:var(--ink)}#star-map.dragging .network-edges path{transition:none}.graph-help{opacity:.75}.graph-controls,.graph-tooltip{backdrop-filter:none}
+@media(prefers-reduced-motion:reduce){#star-map .graph-node,#star-map .node-ring,#star-map .network-edges path{transition:none}}
+
+#star-map .graph-node .node-core{fill:var(--node-color);stroke:var(--canvas)}
