@@ -1,15 +1,19 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage, clipboard } from 'electron';
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { LocalLibrary } from './library.mjs';
+import { AgentSettings, completeWithProvider } from './agent.mjs';
+import { runResearchAgent } from '../dist/ai-agent-core.js';
+import { AgentHistoryFile } from './agent-history.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 app.commandLine.appendSwitch('force-renderer-accessibility');
 const profile = process.env.MATERIA_PROFILE_DIR || (app.isPackaged ? app.getPath('userData') : path.join(appRoot, '.local', 'desktop-profile'));
 app.setPath('userData', profile);
-let mainWindow, library;
+let mainWindow, library, agentHistory;
+let agentRun = null;
 const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
 else {
@@ -17,17 +21,26 @@ else {
   app.whenReady().then(start).catch(error => { dialog.showErrorBox('Materia 无法启动', error.message); app.quit(); });
 }
 app.on('window-all-closed', () => app.quit());
+let quitPending=false;
+app.on('before-quit',event=>{
+  if(!agentHistory||quitPending)return;
+  event.preventDefault();quitPending=true;agentRun?.controller.abort();
+  Promise.allSettled([agentHistory.queue,library.queue]).then(()=>app.quit());
+});
 
 async function start() {
   await mkdir(profile, { recursive: true });
+  const agentSettings = new AgentSettings(profile, safeStorage);
+  await agentSettings.load().catch(() => {});
   let config = {};
   try { config = JSON.parse(await readFile(path.join(profile, 'preferences.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const defaultRoot = process.env.MATERIA_LIBRARY_DIR || (app.isPackaged ? path.join(path.dirname(app.getPath('exe')), '文献库') : path.join(appRoot, '.local', 'desktop-library'));
   const previousRoot = app.isPackaged ? path.resolve(path.dirname(app.getPath('exe')), '..', '..', 'Materia-win32-x64', '文献库') : '';
   const startupRoot = process.env.MATERIA_LIBRARY_DIR || config.libraryPath || (previousRoot && existsSync(path.join(previousRoot, 'library.json')) ? previousRoot : defaultRoot);
   library = await new LocalLibrary(startupRoot).init();
+  agentHistory = new AgentHistoryFile(library.root);
   await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: library.root }, null, 2));
-  mainWindow = new BrowserWindow({ width: 1440, height: 980, minWidth: 1000, minHeight: 700, title: 'Materia · 材料文献星图', backgroundColor: '#f7f7f2', autoHideMenuBar: true, webPreferences: { preload: path.join(appRoot, 'desktop', 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  mainWindow = new BrowserWindow({ show: process.env.MATERIA_HEADLESS !== '1', width: 1440, height: 980, minWidth: 1000, minHeight: 700, title: 'Materia · 材料文献星图', backgroundColor: '#f7f7f2', autoHideMenuBar: true, webPreferences: { preload: path.join(appRoot, 'desktop', 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
   Menu.setApplicationMenu(null);
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== mainWindow.webContents.getURL()) event.preventDefault(); });
@@ -47,6 +60,43 @@ async function start() {
   handle('library:merge-backup', backup => library.mergeBackup(backup));
   handle('library:read-pdf', id => library.readPdf(id));
   handle('library:info', () => library.info());
+  handle('agent:get-config', () => agentSettings.publicConfig());
+  handle('agent:copy-text', value => {
+    if(typeof value!=='string'||value.length>1000000)throw new Error('复制内容无效或过长。');
+    clipboard.writeText(value);return true;
+  });
+  handle('agent:get-history', async () => { const store=agentHistory;await store.queue;return {libraryKey:store.root,state:await store.load()}; });
+  handle('agent:save-history', payload => {
+    if(!payload||payload.libraryKey!==agentHistory.root)throw new Error('文献库已切换，历史记录未写入其他文献库。');
+    return agentHistory.save(payload.state);
+  });
+  handle('agent:open-link', async value => {
+    if (typeof value !== 'string' || value.length > 8000) throw new Error('链接格式无效。');
+    const url = new URL(value);
+    if (!['https:','http:'].includes(url.protocol)) throw new Error('只支持网页链接。');
+    await shell.openExternal(url.href);
+  });
+  handle('agent:save-config', value => agentSettings.save(value));
+  handle('agent:cancel', id => { if (agentRun?.id === id) agentRun.controller.abort(); });
+  handle('agent:run', async payload => {
+    if (agentRun) throw new Error('请先停止当前回答。');
+    if (!payload || typeof payload.id !== 'string' || payload.id.length > 100) throw new Error('请求格式无效。');
+    if (!agentSettings.config) throw new Error('请先配置 AI 服务。');
+    const controller = new AbortController(), config = { ...agentSettings.config };
+    const runSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(300000)]);
+    const current = { id: payload.id, controller }; agentRun = current;
+    try {
+      const context = { papers: structuredClone(library.getPapers()), notes: structuredClone(library.getSetting('notes') || {}), scopeIds: payload.scopeIds ?? null };
+      return await runResearchAgent({ question: payload.question, history: payload.history, context,
+        signal: runSignal,
+        complete: input => completeWithProvider(config, input),
+        onProgress: progress => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('agent:progress', { id: payload.id, ...progress }); },
+      });
+    } catch (error) {
+      return { error: controller.signal.aborted ? '已停止生成。' : runSignal.aborted ? '本次研究已超时，请缩小范围后重试。' : (error.message || 'AI 请求失败，请重试。'), canceled: controller.signal.aborted };
+    } finally { if (agentRun === current) agentRun = null; }
+  });
+  mainWindow.on('closed', () => agentRun?.controller.abort());
   handle('library:open-pdf', async id => { const result = await shell.openPath(await library.pdfPath(id)); if (result) throw new Error(result); });
   handle('library:save-pdf', async id => {
     const p = library.data.papers.find(p => p.id === id); if (!p) throw new Error('找不到文献。');
@@ -58,10 +108,12 @@ async function start() {
   handle('library:choose-folder', async () => {
     const chosen = await dialog.showOpenDialog(mainWindow, { title: '选择或新建文献库文件夹', defaultPath: library.root, properties: ['openDirectory', 'createDirectory'] });
     if (chosen.canceled) return null;
+    agentRun?.controller.abort();
     await library.queue;
+    await agentHistory.queue;
     const next = await new LocalLibrary(chosen.filePaths[0]).init();
     await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: next.root }, null, 2));
-    library = next; return library.info();
+    library = next; agentHistory = new AgentHistoryFile(library.root); return library.info();
   });
   handle('library:save-backup', async json => {
     if (typeof json !== 'string' || json.length > 1024 * 1024 * 1024) throw new Error('备份内容过大。');

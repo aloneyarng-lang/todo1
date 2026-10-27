@@ -15,6 +15,7 @@ import { createParameterFinder, parameterInventory, parameterResults, parameterN
 import { GRAPH_DEFAULTS, cleanGraphSettings } from './graph-settings.js';
 import { createAssociationController, cleanAssociations, associationLocalPapers } from './associations.js';
 import { createThemeController } from './themes.js';
+import { createAgentController } from './ai-agent.js';
 import { BUNDLED_METRICS, JOURNAL_DATA_CHECKED, seedJournalMetrics } from './journal-data.js';
 import { createNotesController } from './notes.js';
 import { normalizeAuthors, authorsText, numericImpact, impactOf, filterCatalog, parseMetrics, mergeMetrics, matchMetadata } from './catalog.js';
@@ -56,6 +57,7 @@ const uid = prefix => `${prefix}-${crypto.randomUUID()}`;
 const emptyFilters = () => ({ tags: [], excludeTags: [], parameterName: '', parameterUnit: '*', tagMode: 'all', journal: '', author: '', institution: '', yearFrom: '', yearTo: '', minIF: '', maxIF: '', impactYear: '', hasNotes: false, onlyFavorites: false, onlyRelated: false });
 const state = { papers: [], collections: [], notes: {}, compareIds: new Set(), hiddenIds: new Set(), hiddenTagNodes: new Set(), focusGraph: true, leftPanelOpen: false, detailOpen: true, graphPreferences: {...GRAPH_DEFAULTS}, associations: [], journalMetrics: [], desktopInfo: null, searchScope: 'all', filters: emptyFilters(), showEdges: true, showLabels: true, mode: 'own', nav: 'all', collection: '', query: '', tag: '', year: '', sort: 'newest', view: 'graph', selected: '', listLimit: 100, ready: false, pendingFiles: [], storageError: false };
 let modalContext = '';
+let agentController;
 let batch, comparison, performanceEditor, bulkEditor, paperActions, parameterFinder, associationController, themeController, reader;
 let layoutTimer, graphPreferenceTimer, switchingLibrary = false;
 let pendingRemovalIds = [], removalBusy = false, lastRemoval = null;
@@ -412,6 +414,7 @@ function openAdvancedFilters() { if (!$('#advanced-filter-dialog').open) $('#adv
 $('#advanced-filter-dialog').addEventListener('close',()=>$('#filter-button').setAttribute('aria-expanded','false'));
 
 const actions = {
+  'ai-agent': () => agentController.open(),
   import: () => importModal(), 'choose-pdf': () => $('#pdf-input').click(),
   'download-md-template': () => saveText(markdownTemplate(), 'materia-metadata-template.md', 'md'),
   'performance-editor': () => performanceEditor.open(state.selected),
@@ -443,6 +446,7 @@ const actions = {
     let info;
     try { info = await native?.chooseFolder(); } finally { switchingLibrary = false; }
     if (!info) return;
+    await agentController.changeLibrary();
     themeController.load(await getSetting('themePreferences'));
     map.setLayout(await getSetting('graphLayout') || {});
     state.graphPreferences=cleanGraphSettings(await getSetting('graphPreferences')||{});state.associations=cleanAssociations(await getSetting('graphAssociations')||[]);
@@ -643,4 +647,5 @@ async function init() {
   render();
   $('.import-main').disabled = !state.ready || state.storageError;
 }
+agentController = createAgentController({ saveText, getPapers: papers, getNotes: () => state.notes, getSelectedIds: () => state.compareIds.size ? [...state.compareIds] : (state.selected ? [state.selected] : []), getSetting, setSetting, isReady: () => state.ready && !state.storageError, openPaper: id => { if (!state.papers.some(p => p.id === id)) { toast('这篇文献已不在当前文献库。'); return; } state.nav='all'; resetFilters(false); state.detailOpen=true; selectPaper(id,true); } });
 init();

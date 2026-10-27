@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="./reader.css">
   <link rel="stylesheet" href="./reader-annotations.css">
   <link rel="stylesheet" href="./paper-actions.css">
+  <link rel="stylesheet" href="./ai-agent.css">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -25,6 +26,7 @@
       <button class="primary import-main" data-action="import" disabled><span data-icon="plus"></span>批量导入<span class="key-hint">N</span></button>
       <p class="nav-caption">WORKSPACE <span>研究空间</span></p>
       <nav class="main-nav">
+        <button class="nav-item" data-action="ai-agent" aria-expanded="false" aria-controls="ai-agent-panel"><span data-icon="search"></span><span>AI 研究助手</span></button>
         <button class="nav-item active" data-nav="all"><span data-icon="orbit"></span><span>文献星图</span><span class="nav-count" id="all-count">0</span></button>
         <button class="nav-item" data-nav="library"><span data-icon="library"></span><span>全部文献</span></button>
         <button class="nav-item" data-nav="favorites"><span data-icon="star"></span><span>我的收藏 · 星标</span><span class="nav-count" id="favorite-count">0</span></button>

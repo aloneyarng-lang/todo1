@@ -1,5 +1,18 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('materiaDesktop', {
+  agentGetConfig: () => ipcRenderer.invoke('agent:get-config'),
+  agentCopyText: value => ipcRenderer.invoke('agent:copy-text', value),
+  agentSaveConfig: value => ipcRenderer.invoke('agent:save-config', value),
+  agentRun: payload => ipcRenderer.invoke('agent:run', payload),
+  agentCancel: id => ipcRenderer.invoke('agent:cancel', id),
+  agentOpenLink: url => ipcRenderer.invoke('agent:open-link', url),
+  agentGetHistory: () => ipcRenderer.invoke('agent:get-history'),
+  agentSaveHistory: payload => ipcRenderer.invoke('agent:save-history', payload),
+  onAgentProgress: callback => {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on('agent:progress', listener);
+    return () => ipcRenderer.removeListener('agent:progress', listener);
+  },
   getPapers: () => ipcRenderer.invoke('library:get-papers'),
   putPapers: papers => ipcRenderer.invoke('library:put-papers', papers),
   deletePaper: id => ipcRenderer.invoke('library:delete-paper', id),
