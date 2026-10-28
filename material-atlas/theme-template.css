@@ -1,6 +1,22 @@
 /* @name: 我的学术主题 */
-/* Materia 主题：颜色、字体、圆角；只修改 :root 中的变量。 */
+/* Materia 主题：颜色、字体和星图形态；只修改 :root 中的变量。 */
 :root {
+  --graph-node-shape: circle;
+  --graph-relation-shape: circle;
+  --graph-node-fill: solid;
+  --graph-edge-style: straight;
+  --graph-edge-dash: solid;
+  --graph-background: plain;
+  --graph-color-mode: category;
+  --graph-node-scale: 1;
+  --graph-node-stroke: .7;
+  --graph-edge-width: 1;
+  --graph-edge-opacity: .2;
+  --graph-label-scale: 1;
+  --graph-label-halo: 3px;
+  --graph-glow: 0px;
+  --graph-edge-color: auto;
+  --graph-label-color: auto;
   --paper: #f7f7f2;
   --surface: #fcfdf9;
   --canvas: #fafcf7;

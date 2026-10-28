@@ -1,3 +1,4 @@
+import {CanvasFile} from './canvases.mjs';
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } from 'electron';
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -12,7 +13,8 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 app.commandLine.appendSwitch('force-renderer-accessibility');
 const profile = process.env.MATERIA_PROFILE_DIR || (app.isPackaged ? app.getPath('userData') : path.join(appRoot, '.local', 'desktop-profile'));
 app.setPath('userData', profile);
-let mainWindow, library, agentHistory;
+let mainWindow, library, agentHistory, canvasStore;
+let canvasCloseReady=false,canvasAllowClose=false;
 let agentRun = null;
 const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
@@ -25,7 +27,7 @@ let quitPending=false;
 app.on('before-quit',event=>{
   if(!agentHistory||quitPending)return;
   event.preventDefault();quitPending=true;agentRun?.controller.abort();
-  Promise.allSettled([agentHistory.queue,library.queue]).then(()=>app.quit());
+  Promise.allSettled([agentHistory.queue,library.queue,canvasStore?.queue]).then(()=>app.quit());
 });
 
 async function start() {
@@ -39,9 +41,12 @@ async function start() {
   const startupRoot = resolveLibraryRoot({envRoot:process.env.MATERIA_LIBRARY_DIR,configuredRoot:config.libraryPath,previousRoot,defaultRoot});
   library = await new LocalLibrary(startupRoot).init();
   agentHistory = new AgentHistoryFile(library.root);
+  canvasStore=new CanvasFile(library.root);
   await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: library.root }, null, 2));
   mainWindow = new BrowserWindow({ show: process.env.MATERIA_HEADLESS !== '1', width: 1440, height: 980, minWidth: 1000, minHeight: 700, title: 'Materia · 材料文献星图', backgroundColor: '#f7f7f2', autoHideMenuBar: true, webPreferences: { preload: path.join(appRoot, 'desktop', 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  mainWindow.webContents.on('render-process-gone',()=>{canvasCloseReady=false;});
   Menu.setApplicationMenu(null);
+  mainWindow.on('close',event=>{if(canvasCloseReady&&!canvasAllowClose){event.preventDefault();mainWindow.webContents.send('canvas:prepare-close');}});
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== mainWindow.webContents.getURL()) event.preventDefault(); });
   mainWindow.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
@@ -49,6 +54,11 @@ async function start() {
     if (event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('不受支持的请求来源。');
     return fn(...args);
   });
+  handle('canvas:get',async()=>{const store=canvasStore;return{libraryKey:store.root,state:await store.load()};});
+  handle('canvas:save',payload=>{if(!payload||payload.libraryKey!==canvasStore.root)throw Error('文献库已切换，画布未写入其他文献库。');return canvasStore.save(payload.state);});
+  handle('canvas:request-close',()=>{mainWindow.close();return true;});
+  handle('canvas:ready',()=>{canvasCloseReady=true;return true;});
+  handle('canvas:confirm-close',async()=>{await canvasStore.queue;canvasAllowClose=true;mainWindow.close();return true;});
   handle('library:get-papers', () => library.getPapers());
   handle('library:put-papers', papers => library.putPapers(papers));
   handle('library:delete-paper', id => library.deletePaper(id));
@@ -109,7 +119,7 @@ async function start() {
     await agentHistory.queue;
     const next = await new LocalLibrary(chosen.filePaths[0]).init();
     await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: next.root }, null, 2));
-    library = next; agentHistory = new AgentHistoryFile(library.root); return library.info();
+    await canvasStore.queue;library = next; agentHistory = new AgentHistoryFile(library.root);canvasStore=new CanvasFile(library.root);return library.info();
   });
   handle('library:save-backup', async json => {
     if (typeof json !== 'string' || json.length > 1024 * 1024 * 1024) throw new Error('备份内容过大。');

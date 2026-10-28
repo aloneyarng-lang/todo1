@@ -23,7 +23,7 @@ async function main(){
   const {createPreviewServer}=await import(pathToFileURL(path.join(root,'server.mjs')));server=createPreviewServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   browser=await chromium.launch({headless:true,executablePath:process.env.MATERIA_CHROME||path.join(process.env['ProgramFiles(x86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe')});
   page=await browser.newPage({viewport:{width:1395,height:960}});page.on('pageerror',error=>errors.push(error.message));
-  const methods={getPapers:()=>clone(data.papers),getSetting:key=>clone(data.settings[key]),setSetting:(key,value)=>{if(key==='themePreferences'&&failSave)throw Error('Simulated save failure');data.settings[key]=clone(value);return true;},info:()=>({path:'ISOLATED TYPOGRAPHY TEST',paperCount:1,materialsVersion:1,themeSchemaVersion:2,readerNotesVersion:1,readerAnnotationsVersion:1,readerDraftsVersion:1}),readPdf:()=>Array.from(pdfBytes)};
+  const methods={getPapers:()=>clone(data.papers),getSetting:key=>clone(data.settings[key]),setSetting:(key,value)=>{if(key==='themePreferences'&&failSave)throw Error('Simulated save failure');data.settings[key]=clone(value);return true;},info:()=>({path:'ISOLATED TYPOGRAPHY TEST',paperCount:1,materialsVersion:1,themeSchemaVersion:2,graphThemeVersion:1,readerNotesVersion:1,readerAnnotationsVersion:1,readerDraftsVersion:1}),readPdf:()=>Array.from(pdfBytes)};
   await page.exposeFunction('__fixtureAPI',(name,args)=>methods[name](...args));
   await page.addInitScript(names=>{globalThis.materiaDesktop=Object.fromEntries(names.map(name=>[name,(...args)=>__fixtureAPI(name,args)]));},Object.keys(methods));
   await page.goto(`http://127.0.0.1:${server.address().port}`);await ready();

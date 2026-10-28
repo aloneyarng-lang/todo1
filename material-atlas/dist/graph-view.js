@@ -1,3 +1,4 @@
+import {GRAPH_THEME_TOKENS,graphAppearance,nodeGeometry,edgeGeometry} from './graph-appearance.js';
 import { createNetwork, stepNetwork, networkSnapshot, cleanLayout } from './force-layout.js';
 import { GRAPH_DEFAULTS, cleanGraphSettings, placeNodeLabels,fitGraphViewport } from './graph-settings.js';
 import { PALETTE } from './palette.js';
@@ -71,8 +72,23 @@ export class StarMap {
       return { ...node, node, paper: node.paper, group, ring, core, label, pin };
     });
     if (first) for (let i = 0; i < 75; i++) stepNetwork(this.network, .8,this.preferences);
-    this.paint(); this.highlight(selected);if(first)this.fit();else this.transform(); this.start(.6);
+    this.applyAppearance(); this.paint(); this.highlight(selected);if(first)this.fit();else this.transform(); this.start(.6);
     this.onStats?.({ papers: this.papers.length, tags: this.network.nodes.filter(node => node.type === 'relation').length, edges: this.network.edges.length, omittedTags: this.network.omittedTags });
+  }
+  applyAppearance() {
+    const style=getComputedStyle(document.documentElement),tokens=Object.fromEntries(Object.keys(GRAPH_THEME_TOKENS).map(key=>[key,style.getPropertyValue(key).trim()]));
+    const appearance=this.appearance=graphAppearance(tokens,this.preferences.appearance);
+    Object.assign(this.svg.dataset,{graphAppearance:this.preferences.appearance,graphBackground:appearance.background,graphFill:appearance.nodeFill});
+    for(const[key,value]of Object.entries({'--render-node-stroke':appearance.nodeStroke+'px','--render-label-halo':appearance.labelHalo+'px','--render-glow':appearance.glow+'px','--render-label-color':appearance.labelColor==='auto'?'var(--muted)':appearance.labelColor}))this.svg.style.setProperty(key,value);
+    for(const item of this.nodes){
+      const node=item.node,shape=node.type==='relation'?appearance.relationShape:appearance.nodeShape,r=node.radius*appearance.nodeScale,geometry=nodeGeometry(shape,r);
+      node.visualRadius=r*(shape==='circle'?1:1.21);
+      const core=el(geometry.tag,{...geometry.attrs,class:'node-core','data-shape':shape});item.core.replaceWith(core);item.core=core;
+      item.group.style.setProperty('--node-color',appearance.colorMode==='category'?node.color:node.type==='relation'?'var(--warning)':'var(--teal)');
+      item.ring.setAttribute('r',node.visualRadius+3);item.ring.setAttribute('stroke',appearance.colorMode==='category'?node.color:'var(--teal)');
+      item.pin.setAttribute('cx',node.visualRadius+4);item.pin.setAttribute('cy',-node.visualRadius-3);
+    }
+    this.labelWidths.clear();if(this.network){this.paint();this.highlightNode(this.activeId||'');}
   }
   paint() {
     for (const [index, item] of this.nodes.entries()) {
@@ -83,8 +99,7 @@ export class StarMap {
     this.placeLabels();
     for (const edge of this.edgeNodes) {
       const a = edge.source, b = edge.target;
-      const dx=b.x-a.x,dy=b.y-a.y,d=Math.max(1,Math.hypot(dx,dy)),ux=dx/d,uy=dy/d,start={x:a.x+ux*(a.radius+3),y:a.y+uy*(a.radius+3)},end={x:b.x-ux*(b.radius+3),y:b.y-uy*(b.radius+3)};
-      edge.path.setAttribute('d',`M${start.x},${start.y} L${end.x},${end.y}`);
+      edge.path.setAttribute('d',edgeGeometry(a,b,this.appearance?.edgeStyle));
     }
   }
   start(alpha = .5) {
@@ -131,16 +146,16 @@ export class StarMap {
     else if(active)for(const edge of this.network.edges)if(edge.source.id===active.id)tagIds.add(edge.target.id);
     for(const edge of this.network?.edges||[])if(tagIds.has(edge.target.id)){this.relatedIds.add(edge.target.id);this.relatedIds.add(edge.source.id);}
     for(const item of this.nodes){const chosen=item.node.id===key;item.group.classList.toggle('is-active',chosen);item.group.setAttribute('opacity',!key||chosen||!tagIds.size?1:this.relatedIds.has(item.node.id)?.9:.32);item.group.setAttribute('aria-pressed',String(item.node.type==='paper'&&item.node.paper.id===this.selected));item.ring.setAttribute('opacity',chosen?.8:0);}
-    for(const edge of this.edgeNodes){const adjacent=edge.source.id===key||edge.target.id===key;edge.path.setAttribute('stroke',adjacent?'var(--teal)':'var(--muted)');edge.path.setAttribute('opacity',!key||!tagIds.size?.2:adjacent?.68:tagIds.has(edge.target.id)?.16:.045);edge.path.setAttribute('stroke-width',(adjacent?1.15:.65)*this.preferences.linkWidth);}
+    for(const edge of this.edgeNodes){const adjacent=edge.source.id===key||edge.target.id===key;const appearance=this.appearance||{},base=appearance.edgeOpacity??.2;edge.path.setAttribute('stroke',adjacent?'var(--teal)':appearance.edgeColor&&appearance.edgeColor!=='auto'?appearance.edgeColor:'var(--muted)');edge.path.setAttribute('opacity',!key||!tagIds.size?base:adjacent?Math.min(.95,base*3.4):tagIds.has(edge.target.id)?base*.8:base*.225);edge.path.setAttribute('stroke-width',(adjacent?1.15:.65)*this.preferences.linkWidth*(appearance.edgeWidth||1));edge.path.setAttribute('stroke-dasharray',appearance.edgeDash==='dashed'?'5 4':appearance.edgeDash==='dotted'?'1 4':'none');}
     this.placeLabels();
   }
   placeLabels(){
     if(!this.network)return;
     const bounds=this.svg.getBoundingClientRect(),viewportScale=Math.min(bounds.width/1000,bounds.height/this.viewHeight)||1;
-    const svgStyle=getComputedStyle(this.svg),family=svgStyle.fontFamily,weight=svgStyle.fontWeight,fontScale=(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||13)/13,measureText=(text,font)=>{const key=font.toFixed(4)+'|'+text;if(!this.labelWidths.has(key)){this.labelCanvas.font=`${weight} ${font}px ${family}`;this.labelWidths.set(key,this.labelCanvas.measureText(text).width);}return this.labelWidths.get(key);};
+    const svgStyle=getComputedStyle(this.svg),family=svgStyle.fontFamily,weight=svgStyle.fontWeight,fontScale=(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||13)/13*(this.appearance?.labelScale||1),measureText=(text,font)=>{const key=font.toFixed(4)+'|'+text;if(!this.labelWidths.has(key)){this.labelCanvas.font=`${weight} ${font}px ${family}`;this.labelWidths.set(key,this.labelCanvas.measureText(text).width);}return this.labelWidths.get(key);};
     if(this.labelWidths.size>10000)this.labelWidths.clear();
-    const positions=placeNodeLabels(this.network.nodes,{scale:this.scale,viewportScale,measureText,fontScale,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.preferences.labelThreshold,viewHeight:this.viewHeight,previous:this.labelPositions});this.labelPositions=positions;
-    for(const item of this.nodes)item.group.querySelector('.node-hit-area').setAttribute('r',Math.max(item.node.radius+5,11/(this.scale*viewportScale)));
+    const positions=placeNodeLabels(this.network.nodes.map(node=>({...node,radius:node.visualRadius??node.radius})),{scale:this.scale,viewportScale,measureText,fontScale,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.preferences.labelThreshold,viewHeight:this.viewHeight,previous:this.labelPositions});this.labelPositions=positions;
+    for(const item of this.nodes)item.group.querySelector('.node-hit-area').setAttribute('r',Math.max((item.node.visualRadius??item.node.radius)+5,11/(this.scale*viewportScale)));
     for(const item of this.nodes){const placed=positions.get(item.node.id);item.label.style.opacity=placed?String(placed.opacity):'0';item.label.setAttribute('aria-hidden',String(!placed));if(!placed)continue;item.label.setAttribute('x',placed.x);item.label.setAttribute('y',placed.y);item.label.setAttribute('text-anchor','start');item.label.style.fontSize=placed.font+'px';const text=placed.lines.join('|');if(item.label.dataset.lines!==text){item.label.replaceChildren(...placed.lines.map((line,index)=>el('tspan',{x:placed.x,dy:index?placed.font*1.35:0},line)));item.label.dataset.lines=text;}else for(const [index,span]of [...item.label.children].entries()){span.setAttribute('x',placed.x);span.setAttribute('dy',index?placed.font*1.35:0);}}
   }
   point(event) { const matrix = this.svg.getScreenCTM(); return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : { x: 500, y: 300 }; }

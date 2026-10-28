@@ -20,7 +20,11 @@
     "verify:global-elastic": "node scripts/verify-global-elastic.cjs",
     "build:force-vendor": "node scripts/build-force-vendor.mjs",
     "verify:release-ui": "node scripts/verify-release-ui.cjs",
-    "verify:themes": "node scripts/verify-themes.cjs"
+    "verify:themes": "node scripts/verify-themes.cjs",
+    "verify:canvas": "node scripts/verify-canvas.cjs",
+    "verify:canvas-desktop": "node scripts/verify-canvas-desktop.cjs",
+    "verify:material-selection": "node scripts/verify-material-selection.cjs",
+    "verify:material-selection-desktop": "node scripts/verify-material-selection-desktop.cjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",

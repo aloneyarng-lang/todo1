@@ -1,5 +1,6 @@
 import {cleanIconShapes,ICON_DEFAULTS} from './theme-model.js';
 const icons = {
+  redo:'<path d="M20 9H10a6 6 0 1 0 0 12M20 9l-5-5m5 5-5 5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
   orbit: '<circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-35 12 12)"/><path d="M9 3a10 10 0 0 1 8 17"/>',
   library: '<path d="M4 4h4v16H4zM11 4h4v16h-4zM17 4l4-1 4 16-4 1z" transform="translate(-1 0) scale(.95 1)"/>',

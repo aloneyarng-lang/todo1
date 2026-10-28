@@ -1,0 +1,52 @@
+// Safe graph appearance tokens shared by CSS themes, complete packages and the SVG renderer.
+export const GRAPH_FIELDS={
+ nodeShape:{token:'--graph-node-shape',default:'circle',values:['circle','diamond','hexagon','square']},
+ relationShape:{token:'--graph-relation-shape',default:'circle',values:['circle','diamond','hexagon','square']},
+ nodeFill:{token:'--graph-node-fill',default:'solid',values:['solid','hollow']},
+ edgeStyle:{token:'--graph-edge-style',default:'straight',values:['straight','curve']},
+ edgeDash:{token:'--graph-edge-dash',default:'solid',values:['solid','dashed','dotted']},
+ background:{token:'--graph-background',default:'plain',values:['plain','dots','grid']},
+ colorMode:{token:'--graph-color-mode',default:'category',values:['category','accent']},
+ nodeScale:{token:'--graph-node-scale',default:'1',range:[.7,1.8]},
+ nodeStroke:{token:'--graph-node-stroke',default:'.7',range:[.4,3]},
+ edgeWidth:{token:'--graph-edge-width',default:'1',range:[.4,2.5]},
+ edgeOpacity:{token:'--graph-edge-opacity',default:'.2',range:[.05,.8]},
+ labelScale:{token:'--graph-label-scale',default:'1',range:[.75,1.5]},
+ labelHalo:{token:'--graph-label-halo',default:'3px',range:[0,6],unit:'px'},
+ glow:{token:'--graph-glow',default:'0px',range:[0,8],unit:'px'},
+ edgeColor:{token:'--graph-edge-color',default:'auto',color:true},
+ labelColor:{token:'--graph-label-color',default:'auto',color:true},
+};
+export const GRAPH_THEME_TOKENS=Object.fromEntries(Object.values(GRAPH_FIELDS).map(row=>[row.token,row.default]));
+const byToken=new Map(Object.entries(GRAPH_FIELDS).map(([key,row])=>[row.token,{key,...row}]));
+export function cleanGraphToken(key,input){
+ const row=byToken.get(key);if(!row)throw Error('未知星图变量 '+key);const value=String(input).trim();
+ if(row.values){if(!row.values.includes(value))throw Error(`${key} 可选：${row.values.join(' / ')}。`);}
+ else if(row.color){if(value!=='auto'&&!/^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(value)&&! /^(?:rgb|rgba|hsl|hsla)\([\d\s.,%+\-/]+\)$/i.test(value))throw Error(key+' 请填写 auto 或颜色。');}
+ else{const numeric=row.unit?value.replace(/px$/,''):value;if(!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(numeric)||row.unit&&!value.endsWith(row.unit)||Number(numeric)<row.range[0]||Number(numeric)>row.range[1])throw Error(`${key} 需为 ${row.range.join(' 至 ')}${row.unit||''}。`);}
+ return value;
+}
+export function graphTokens(graph={}){
+ if(!graph||typeof graph!=='object'||Array.isArray(graph))throw Error('graph 需为对象。');const tokens={};
+ for(const[key,value]of Object.entries(graph)){const row=GRAPH_FIELDS[key];if(!row)throw Error('graph 不支持字段 '+key);if(row.range&&(typeof value!=='number'||!Number.isFinite(value)))throw Error('graph.'+key+' 需为有限数值。');tokens[row.token]=cleanGraphToken(row.token,row.range?String(value)+(row.unit||''):value);}return tokens;
+}
+export function graphFromTokens(tokens={}){return Object.fromEntries(Object.entries(GRAPH_FIELDS).map(([key,row])=>{let value;try{value=cleanGraphToken(row.token,tokens[row.token]??row.default);}catch{value=row.default;}return[key,row.range?parseFloat(value):value];}));}
+export const GRAPH_PRESETS={
+ classic:{name:'经典圆点',graph:graphFromTokens()},
+ orbital:{name:'轨道圆环',graph:graphFromTokens(graphTokens({nodeFill:'hollow',relationShape:'diamond',edgeStyle:'curve',edgeOpacity:.3,nodeStroke:1.5,nodeScale:1.25,background:'dots'}))},
+ crystal:{name:'晶格节点',graph:graphFromTokens(graphTokens({nodeShape:'hexagon',relationShape:'diamond',edgeStyle:'straight',background:'grid',nodeStroke:1.2,nodeScale:1.35,edgeOpacity:.3,edgeDash:'dashed'}))},
+};
+export function graphAppearance(tokens={},preset='theme'){return preset!=='theme'&&GRAPH_PRESETS[preset]?{...GRAPH_PRESETS[preset].graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:graphFromTokens(tokens);}
+export function nodeGeometry(shape,r){
+ if(shape==='square')return{tag:'rect',attrs:{x:-r*.85,y:-r*.85,width:r*1.7,height:r*1.7,rx:r*.16}};
+ if(shape==='diamond')return{tag:'path',attrs:{d:`M0 ${-r*1.15} L${r*1.15} 0 L0 ${r*1.15} L${-r*1.15} 0 Z`}};
+ if(shape==='hexagon')return{tag:'path',attrs:{d:Array.from({length:6},(_,i)=>{const a=Math.PI/3*i;return(i?'L':'M')+(Math.cos(a)*r*1.1)+','+(Math.sin(a)*r*1.1);}).join(' ')+' Z'}};
+ return{tag:'circle',attrs:{r}};
+}
+export function edgeGeometry(a,b,style='straight'){
+ const dx=b.x-a.x,dy=b.y-a.y,d=Math.max(1,Math.hypot(dx,dy));if(d<1.01)return`M${a.x},${a.y} L${b.x},${b.y}`;
+ const bend=style==='curve'?Math.min(42,d*.13):0,c={x:(a.x+b.x)/2-dy/d*bend,y:(a.y+b.y)/2+dx/d*bend};
+ const startVector={x:c.x-a.x,y:c.y-a.y},endVector={x:c.x-b.x,y:c.y-b.y};
+ const offset=(n,v)=>{const length=Math.hypot(v.x,v.y)||1,pad=Math.min((n.visualRadius??n.radius)+3,d*.4);return{x:n.x+v.x/length*pad,y:n.y+v.y/length*pad};};
+ const s=offset(a,startVector),e=offset(b,endVector);return`M${s.x},${s.y} ${style==='curve'?`Q${c.x},${c.y} `:'L'}${e.x},${e.y}`;
+}

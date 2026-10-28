@@ -1,5 +1,18 @@
-/* Flat relationship graph: small circles, straight links, progressive labels. */
-#star-map .graph-node{transition:opacity .14s ease}#star-map.dragging .graph-node{transition:none}#star-map .node-core{vector-effect:non-scaling-stroke;stroke-width:.7px}#star-map .node-ring{vector-effect:non-scaling-stroke;stroke-width:1px;stroke-dasharray:none!important;transition:opacity .12s}#star-map .node-halo,#star-map .node-glint,#star-map .network-backdrop{display:none}#star-map .network-edges path{stroke-linecap:round;stroke-linejoin:round;transition:opacity .12s,stroke .12s}#star-map .graph-node .node-label,#star-map .graph-node .tag-node-label{stroke-width:3px;font-weight:400}#star-map .graph-node.is-active .node-label,#star-map .graph-node.is-active .tag-node-label{fill:var(--ink)}#star-map.dragging .network-edges path{transition:none}.graph-help{opacity:.75}.graph-controls,.graph-tooltip{backdrop-filter:none}
+/* Graph geometry is generated from validated theme tokens; forces remain independent. */
+#star-map .graph-node{transition:opacity .14s ease}
+#star-map.dragging .graph-node{transition:none}
+#star-map .graph-node .node-core{vector-effect:non-scaling-stroke;stroke-width:var(--render-node-stroke,.7px);fill:var(--node-color);stroke:var(--canvas);filter:drop-shadow(0 0 var(--render-glow,0px) var(--node-color))}
+#star-map[data-graph-fill="hollow"] .graph-node .node-core{fill:var(--canvas);stroke:var(--node-color)}
+#star-map .node-ring{vector-effect:non-scaling-stroke;stroke-width:1px;stroke-dasharray:none;transition:opacity .12s}
+#star-map .node-halo,#star-map .node-glint,#star-map .network-backdrop{display:none}
+#star-map .network-edges path{stroke-linecap:round;stroke-linejoin:round;transition:opacity .12s,stroke .12s}
+#star-map .graph-node .node-label,#star-map .graph-node .tag-node-label{stroke-width:var(--render-label-halo,3px);font-weight:400;fill:var(--render-label-color,var(--muted))}
+#star-map .graph-node.is-active .node-label,#star-map .graph-node.is-active .tag-node-label{fill:var(--ink)}
+#star-map.dragging .network-edges path{transition:none}
+#star-map[data-graph-background="plain"]{background-image:none}
+#star-map[data-graph-background="dots"]{background-image:radial-gradient(circle,color-mix(in srgb,var(--line) 70%,transparent) .8px,transparent .9px);background-size:24px 24px}
+#star-map[data-graph-background="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--line) 42%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line) 42%,transparent) 1px,transparent 1px);background-size:32px 32px}
+.graph-wrap:has(#star-map[data-graph-background])::after{display:none}
+.graph-help{opacity:.75}.graph-controls,.graph-tooltip{backdrop-filter:none}
+.graph-appearance-help{font-size:.75rem;color:var(--muted);line-height:1.8;margin:10px 0 0}
 @media(prefers-reduced-motion:reduce){#star-map .graph-node,#star-map .node-ring,#star-map .network-edges path{transition:none}}
-
-#star-map .graph-node .node-core{fill:var(--node-color);stroke:var(--canvas)}

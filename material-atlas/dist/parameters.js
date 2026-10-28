@@ -23,7 +23,7 @@ export function measurementsCSV(papers) {
     let text = String(value ?? ''); if (!numeric && /^[=+\-@]/.test(text)) text = "'" + text;
     return '"' + text.replaceAll('"', '""') + '"';
   };
-  const rows = [['文献标题','发表年份','材料ID','材料名称','成分 / 配方','样品','参数名称','数值','单位','测试条件','来源','限定符','误差']];
-  for (const p of papers) for (const m of paperMeasurements(p)) rows.push([p.title, p.year, m.materialId, m.materialName, m.materialComposition, m.sample, m.name, m.value, m.unit, m.conditions, m.source, m.qualifier, m.uncertainty]);
+  const rows = [['文献标题','发表年份','材料ID','材料名称','成分 / 配方','样品','参数名称','数值','单位','测试条件','来源','限定符','误差','文献ID','DOI','刊物','作者','选择项ID','记录ID']];
+  for (const p of papers) for (const m of paperMeasurements(p)) rows.push([p.title, p.year, m.materialId, m.materialName, m.materialComposition, m.sample, m.name, m.value, m.unit, m.conditions, m.source, m.qualifier, m.uncertainty,p.id,p.doi||'',p.journal||'',p.authors||(p.authorDetails||[]).map(a=>a.name).join('; '),p.comparisonSubject?.key||'',m.id||'']);
   return '\uFEFF' + rows.map((r, i) => r.map((v, col) => quote(v, i > 0 && [1,7,12].includes(col))).join(',')).join('\r\n');
 }

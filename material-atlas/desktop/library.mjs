@@ -1,3 +1,4 @@
+import {cleanMaterialSelection} from '../dist/material-selection.js';
 import { normalizeNotes, cleanReaderState, cleanReaderDrafts } from '../dist/note-model.js';
 import { mkdir, readFile, writeFile, rename, copyFile, stat, access } from 'node:fs/promises';
 import path from 'node:path';
@@ -68,7 +69,8 @@ export class LocalLibrary {
   getPapers() { return this.data.papers.map(p => materializePaper({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
-    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts'].includes(key)) throw new Error('不支持的文献库设置。');
+    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'comparisonState', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts'].includes(key)) throw new Error('不支持的文献库设置。');
+    if(key==='comparisonState')value=cleanMaterialSelection(value);
     if(key==='readerDrafts')value=cleanReaderDrafts(value);
     if(key==='readerState')value=cleanReaderState(value);
     if(key==='themePreferences')value=cleanThemePreferences(value);
@@ -171,6 +173,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2 };
+    return { path: this.root, papers: this.data.papers.length, bytes, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: 1, researchCanvasVersion: 1, materialSelectionVersion: 1 };
   }
 }

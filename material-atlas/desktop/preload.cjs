@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('materiaDesktop', {
     ipcRenderer.on('agent:progress', listener);
     return () => ipcRenderer.removeListener('agent:progress', listener);
   },
+  canvasGet: () => ipcRenderer.invoke('canvas:get'),
+  canvasSave: payload => ipcRenderer.invoke('canvas:save',payload),
+  requestClose: () => ipcRenderer.invoke('canvas:request-close'),
+  canvasReady: () => ipcRenderer.invoke('canvas:ready'),
+  canvasConfirmClose: () => ipcRenderer.invoke('canvas:confirm-close'),
+  onCanvasClose: callback => {const listener=()=>callback();ipcRenderer.on('canvas:prepare-close',listener);return()=>ipcRenderer.removeListener('canvas:prepare-close',listener);},
   getPapers: () => ipcRenderer.invoke('library:get-papers'),
   putPapers: papers => ipcRenderer.invoke('library:put-papers', papers),
   deletePaper: id => ipcRenderer.invoke('library:delete-paper', id),

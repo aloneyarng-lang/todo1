@@ -1,9 +1,10 @@
+import {GRAPH_THEME_TOKENS,GRAPH_FIELDS} from './graph-appearance.js';
 import {THEME_TOKENS,fontBytes} from './theme-model.js';
 import {setIconTheme} from './icons.js';
 const uiVariables={density:['--ui-density',''],radius:['--radius','px'],buttonRadius:['--button-radius','px'],cardRadius:['--card-radius','px'],menuRadius:['--menu-radius','px'],borderWidth:['--border-width','px'],sidebarWidth:['--sidebar-width','px'],controlHeight:['--control-height','px'],cardPadding:['--card-padding','px'],menuPadding:['--menu-padding','px'],cardGap:['--card-gap','px']};
 const hash=text=>[...text].reduce((v,c)=>(v*31+c.charCodeAt(0))>>>0,7).toString(36);
 const properties={'--sans':'font-family','--serif':'font-family','--mono':'font-family','--numeric':'font-family','--radius':'border-radius','--theme-mode':'color-scheme','--font-size':'font-size','--font-weight':'font-weight','--heading-weight':'font-weight','--line-height':'line-height','--heading-line-height':'line-height','--heading-scale':'opacity'};
-const validToken=(key,value)=>key==='--heading-scale'||CSS.supports(properties[key]||'color',value);
+const validToken=(key,value)=>Object.hasOwn(GRAPH_THEME_TOKENS,key)?(!Object.values(GRAPH_FIELDS).find(row=>row.token===key).color||value==='auto'||CSS.supports('color',value)):key==='--heading-scale'||CSS.supports(properties[key]||'color',value);
 export async function validateThemeResources(theme){
  for(const[key,value]of Object.entries(theme.tokens))if(!validToken(key,value))throw new Error('主题变量 '+key+' 的 CSS 值无法识别。');
  for(const asset of theme.assets?.fonts||[]){const face=new FontFace('MateriaValidation_'+asset.id,fontBytes(asset),{weight:asset.weight,style:asset.style});try{await face.load();}catch{throw new Error(`字体「${asset.family}」无法解码，主题未导入。`);}}

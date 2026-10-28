@@ -8,7 +8,7 @@ import {LocalLibrary} from '../desktop/library.mjs';
 const example=JSON.parse(await readFile('theme-examples/blueprint.mtheme.json','utf8'));
 const file=pack=>({name:'test.mtheme.json',text:JSON.stringify(pack)});
 test('built-in appearance profiles differ in typography, density, shape and icons through the same imported schema',()=>{
- const profiles=BUILTIN_THEMES.map(row=>resolveTheme({selected:row.id}));assert.ok(new Set(profiles.map(p=>p.tokens['--sans'])).size>=4);assert.equal(new Set(profiles.map(p=>[p.tokens['--sans'],p.tokens['--serif'],p.ui.style,p.ui.density,p.icons.style].join('|'))).size,6);assert.ok(new Set(profiles.map(p=>p.icons.style)).size>=4);assert.ok(new Set(profiles.map(p=>p.ui.cardStyle)).size>=3);
+ const profiles=BUILTIN_THEMES.map(row=>resolveTheme({selected:row.id}));assert.ok(new Set(profiles.map(p=>p.tokens['--sans'])).size>=4);assert.equal(new Set(profiles.map(p=>[p.tokens['--sans'],p.tokens['--serif'],p.ui.style,p.ui.density,p.icons.style].join('|'))).size,BUILTIN_THEMES.length);assert.ok(new Set(profiles.map(p=>p.icons.style)).size>=4);assert.ok(new Set(profiles.map(p=>p.ui.cardStyle)).size>=3);
  for(const profile of profiles){const imported=resolveTheme(importThemeFiles({},[{name:'copy.mtheme.json',text:themePackage(profile)}],()=> 'custom-copy'));assert.deepEqual(imported.ui,profile.ui);assert.deepEqual(imported.icons,profile.icons);assert.equal(imported.tokens['--sans'],profile.tokens['--sans']);}
 });
 test('a standalone package round trips embedded font bytes, units, UI, semantic icon shapes and four font overrides',()=>{

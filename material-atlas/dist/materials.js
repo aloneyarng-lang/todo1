@@ -40,8 +40,8 @@ export function normalizePaperMaterials(paper) { const result = materializePaper
 
 // A derived view for search, comparison and export. It is never a second stored copy.
 export function paperMeasurements(paper) {
-  return paperMaterials(paper).flatMap(material => (material.measurements || []).map(measurement => ({
-    ...measurement, materialId: material.id, materialName: material.name,
+  return paperMaterials(paper).flatMap((material,index) => (material.measurements || []).map(measurement => ({
+    ...measurement, materialId: material.id||'unidentified-material-'+index, materialName: material.name,
     materialComposition: material.composition || '',
   })));
 }
