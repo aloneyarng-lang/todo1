@@ -1,6 +1,20 @@
 import {MARK_COLORS,normalizeAnchor,rectFromPoints} from './note-model.js';
+import {TRANSLATION_LANGUAGES} from './study-model.js';
 export const annotationName=anchor=>({text:'文字标注',arrow:'箭头标注',region:'区域标记'}[anchor?.kind]||'区域标记');
 const clamp=value=>Math.min(1,Math.max(0,value));
+export function translationAnnotation({page,selectionRect,text,translatedText,targetLanguage='zh-CN',fingerprint='',pageAspect=792/612}){
+  if(typeof text!=='string'||!text.trim()||text.length>4000||typeof translatedText!=='string'||!translatedText.trim())throw new Error('选文或译文无效，请重新划词翻译。');
+  const source=normalizeAnchor({page,rect:selectionRect,fingerprint,color:'teal'}),translation=translatedText.trim();
+  const body=`译文（${TRANSLATION_LANGUAGES[targetLanguage]||'目标语言'}）\n${translation}\n\n原文（第 ${page} 页）\n${text.trim()}`;
+  if(body.length>40000)throw new Error('译文过长，无法完整保存到一条批注，请缩小选文后重试。');
+  const width=Math.min(.48,Math.max(.4,source.rect.width)),lineWidth=width*612-20,aspect=Number.isFinite(pageAspect)&&pageAspect>.1&&pageAspect<10?pageAspect:792/612;
+  const lineCount=label=>label.split('\n').reduce((sum,line)=>sum+Math.max(1,Math.ceil([...line].reduce((total,char)=>total+(char.charCodeAt(0)<128?6.6:12),0)/lineWidth)),0);
+  let preview=translation.slice(0,240).replace(/[\uD800-\uDBFF]$/,''),label;
+  do{label='译文：'+preview+(preview.length<translation.length?'…（完整译文见详细批注）':'');if((lineCount(label)*17.4+22)/(612*aspect)<=.34||preview.length<=20)break;preview=preview.slice(0,-1).replace(/[\uD800-\uDBFF]$/,'');}while(preview);
+  const height=Math.max(.06,Math.min(.34,(lineCount(label)*17.4+22)/(612*aspect)));
+  const x=Math.min(source.rect.x,1-width),below=source.rect.y+source.rect.height+.012,y=below+height<=1?below:Math.max(0,source.rect.y-height-.012);
+  return{body,anchor:normalizeAnchor({kind:'text',page,rect:{x,y,width,height},color:'teal',fingerprint,label,fontSize:12})};
+}
 export function gestureAnnotation(tool,page,start,end,color='teal',fingerprint=''){
   start={x:clamp(start.x),y:clamp(start.y)};end={x:clamp(end.x),y:clamp(end.y)};
   if(tool==='arrow'){

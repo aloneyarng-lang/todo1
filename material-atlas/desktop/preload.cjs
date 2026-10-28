@@ -1,7 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('materiaDesktop', {
+  translateText: payload => ipcRenderer.invoke('translation:run',payload),
+  translationCancel: id => ipcRenderer.invoke('translation:cancel',id),
+  studyRead: () => ipcRenderer.invoke('study:read'),
+  studyUpdate: payload => ipcRenderer.invoke('study:update',payload),
   agentGetConfig: () => ipcRenderer.invoke('agent:get-config'),
   agentSaveConfig: value => ipcRenderer.invoke('agent:save-config', value),
+  agentTestConnection: value => ipcRenderer.invoke('agent:test-connection',value),
   agentRun: payload => ipcRenderer.invoke('agent:run', payload),
   agentCancel: id => ipcRenderer.invoke('agent:cancel', id),
   agentOpenLink: url => ipcRenderer.invoke('agent:open-link', url),

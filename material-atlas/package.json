@@ -1,6 +1,6 @@
 {
   "name": "materia-atlas",
-  "version": "1.3.0",
+  "version": "1.4.4",
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",
@@ -24,7 +24,9 @@
     "verify:canvas": "node scripts/verify-canvas.cjs",
     "verify:canvas-desktop": "node scripts/verify-canvas-desktop.cjs",
     "verify:material-selection": "node scripts/verify-material-selection.cjs",
-    "verify:material-selection-desktop": "node scripts/verify-material-selection-desktop.cjs"
+    "verify:material-selection-desktop": "node scripts/verify-material-selection-desktop.cjs",
+    "verify:study": "node scripts/verify-study.cjs",
+    "verify:study-desktop": "node scripts/verify-study-desktop.cjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",

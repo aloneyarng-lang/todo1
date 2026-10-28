@@ -21,6 +21,8 @@ import { GRAPH_DEFAULTS, cleanGraphSettings } from './graph-settings.js';
 import { createAssociationController, cleanAssociations, associationLocalPapers } from './associations.js';
 import { createThemeController } from './themes.js';
 import { createAgentController } from './ai-agent.js';
+import {createVocabularyController} from './vocabulary-ui.js';
+import {readStudy} from './study-client.js';
 import { BUNDLED_METRICS, JOURNAL_DATA_CHECKED, seedJournalMetrics } from './journal-data.js';
 import { createNotesController } from './notes.js';
 import { normalizeAuthors, authorsText, numericImpact, impactOf, filterCatalog, parseMetrics, mergeMetrics, matchMetadata } from './catalog.js';
@@ -32,7 +34,7 @@ const uid = prefix => `${prefix}-${crypto.randomUUID()}`;
 const emptyFilters = () => ({ tags: [], excludeTags: [], parameterName: '', parameterUnit: '*', tagMode: 'all', journal: '', author: '', institution: '', yearFrom: '', yearTo: '', minIF: '', maxIF: '', impactYear: '', hasNotes: false, onlyFavorites: false, onlyRelated: false });
 const state = { papers: [], collections: [], notes: {}, compareIds: new Set(), hiddenIds: new Set(), hiddenTagNodes: new Set(), focusGraph: true, leftPanelOpen: false, detailOpen: true, graphPreferences: {...GRAPH_DEFAULTS}, associations: [], journalMetrics: [], desktopInfo: null, searchScope: 'all', filters: emptyFilters(), showEdges: true, showLabels: true, mode: 'own', nav: 'all', collection: '', query: '', tag: '', year: '', sort: 'newest', view: 'graph', selected: '', listLimit: 100, ready: false, pendingFiles: [], storageError: false };
 let modalContext = '';
-let agentController, researchCanvas;
+let agentController, researchCanvas, vocabularyController;
 let batch, comparison, performanceEditor, bulkEditor, paperActions, parameterFinder, associationController, themeController, reader;
 let layoutTimer, graphPreferenceTimer, switchingLibrary = false;
 let pendingRemovalIds = [], removalBusy = false, lastRemoval = null;
@@ -340,7 +342,7 @@ async function exportLibrary() {
   if (!ensureStorage()) return;
   if (!state.papers.length && !state.collections.length && !state.journalMetrics.length && !Object.keys(state.notes).length) { toast('你的文献库还是空的，导入 PDF 后即可导出完整备份。'); return; }
   toast('正在打包 PDF 和文献信息，请稍候…');
-  const backup = await createBackup(state.papers, state.collections, state.notes, state.journalMetrics);
+  const backup = await createBackup(state.papers, state.collections, state.notes, state.journalMetrics, await readStudy());
   if (native) { const saved = await native.saveBackup(JSON.stringify(backup)); if (!saved.canceled) toast(`完整备份已保存到：${saved.path}`); return; }
   const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -372,7 +374,7 @@ async function restoreFile(file) {
 function resetFilters(shouldRender = true) { state.query = ''; state.tag = ''; state.year = ''; state.collection = ''; state.sort = 'newest'; state.filters = emptyFilters(); state.hiddenIds.clear(); state.listLimit = 100; $('#search').value = ''; if (shouldRender) render(); }
 
 function helpModal() {
-  showModal('从阅读，到连接', '一个安静、专注的材料文献研究空间。', `<div class="guide-step"><span>1</span><div><strong>收录原始 PDF</strong><p>选择或拖入多份 PDF；相同文件自动去重。桌面版将文件保存至本地文献库文件夹，可在设置里更换位置。</p></div></div><div class="guide-step"><span>2</span><div><strong>补充完整信息</strong><p>编辑标题、全部作者与机构、期刊和标签，或导入其他 AI 整理的 JSON。年度影响因子可通过 CSV / JSON 导入。</p></div></div><div class="guide-step"><span>3</span><div><strong>让思考彼此连接</strong><p>点击标题或标签，分别添加多条笔记。使用 [[完整标题]] 和 [[#标签]] 互相跳转，目标处会显示反向链接。</p></div></div><div class="guide-step"><span>4</span><div><strong>搜索与探索</strong><p>搜索标题、标签、作者、机构和笔记。过滤支持多标签、期刊、年份与 IF 范围，星图和列表同步更新，IF 支持升降序排列。</p></div></div><div class="guide-step"><span>5</span><div><strong>把积累带走</strong><p>导出完整备份，包含 PDF、笔记、作者机构和期刊指标；可在其他设备恢复。桌面版也可直接复制整个文献库文件夹。</p></div></div><div class="info-box">所有文献信息由你填写或导入，PDF 在本地阅读，不上传；程序不自动分析文献内容、生成标签或影响因子。</div><div class="modal-footer"><button class="primary" data-action="close-modal">开始探索</button></div>`, 'help');
+  showModal('从阅读，到连接', '一个安静、专注的材料文献研究空间。', `<div class="guide-step"><span>1</span><div><strong>收录原始 PDF</strong><p>选择或拖入多份 PDF；相同文件自动去重。桌面版将文件保存至本地文献库文件夹，可在设置里更换位置。</p></div></div><div class="guide-step"><span>2</span><div><strong>补充完整信息</strong><p>编辑标题、全部作者与机构、期刊和标签，或导入其他 AI 整理的 JSON。年度影响因子可通过 CSV / JSON 导入。</p></div></div><div class="guide-step"><span>3</span><div><strong>让思考彼此连接</strong><p>点击标题或标签，分别添加多条笔记。使用 [[完整标题]] 和 [[#标签]] 互相跳转，目标处会显示反向链接。</p></div></div><div class="guide-step"><span>4</span><div><strong>搜索与探索</strong><p>搜索标题、标签、作者、机构和笔记。过滤支持多标签、期刊、年份与 IF 范围，星图和列表同步更新，IF 支持升降序排列。</p></div></div><div class="guide-step"><span>译</span><div><strong>对照翻译与生词复习</strong><p>在 PDF 中选中文字后，点击弹窗「翻译」才会发送请求；译文出现后点击「添加批注」贴到原文附近。也可在右侧「译文」主动翻译当前页或整篇。短词可保存到生词本，记录原句与页码，左侧「译」可搜索、复习与导出。</p></div></div><div class="guide-step"><span>5</span><div><strong>把积累带走</strong><p>导出完整备份，包含 PDF、笔记、作者机构、期刊指标、生词本和译文；可在其他设备恢复。桌面版也可直接复制整个文献库文件夹。</p></div></div><div class="info-box">所有文献信息由你填写或导入，PDF 文件留在本地。主动翻译时会把选文或页面文字发给已配置的 AI 服务；程序不自动生成标签或影响因子。</div><div class="modal-footer"><button class="primary" data-action="close-modal">开始探索</button></div>`, 'help');
 }
 function shortcutsModal() {
   showModal('留一点时间给思考', '让常用操作更快一步。', '<div class="shortcut-row"><span>搜索文献</span><kbd>/</kbd></div><div class="shortcut-row"><span>导入文献</span><kbd>N</kbd></div><div class="shortcut-row"><span>切换星图 / 列表</span><kbd>V</kbd></div><div class="shortcut-row"><span>适应全部可见节点</span><kbd>0</kbd></div><div class="shortcut-row"><span>关闭弹窗 / 详情</span><kbd>Esc</kbd></div><div class="shortcut-row"><span>快捷键说明</span><kbd>?</kbd></div><div class="modal-footer"><button class="primary" data-action="close-modal">记住了</button></div>', 'shortcuts');
@@ -388,6 +390,7 @@ $('#advanced-filter-dialog').addEventListener('close',()=>$('#filter-button').se
 
 const actions = {
   'ai-agent': () => agentController.open(),
+  'vocabulary': () => vocabularyController.open(),
   import: () => importModal(), 'choose-pdf': () => $('#pdf-input').click(),
   'download-md-template': () => saveText(markdownTemplate(), 'materia-metadata-template.md', 'md'),
   'performance-editor': () => performanceEditor.open(state.selected),
@@ -490,7 +493,7 @@ document.addEventListener('drop', async event => { if (!event.dataTransfer.files
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') { $('#detail-panel').classList.remove('mobile-open'); $('#sidebar').classList.remove('mobile-open'); return; }
-  if (event.target.matches('input,textarea,select') || event.target.isContentEditable || event.metaKey || event.ctrlKey || event.altKey || $('#modal').open || reader?.isOpen() || researchCanvas?.isOpen()) return;
+  if (event.target.closest('#vocabulary-dialog') || event.target.matches('input,textarea,select') || event.target.isContentEditable || event.metaKey || event.ctrlKey || event.altKey || $('#modal').open || reader?.isOpen() || researchCanvas?.isOpen()) return;
   if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-select]')) { event.preventDefault(); selectPaper(event.target.dataset.select, true); return; }
   if (event.key === '/') { event.preventDefault(); $('#search').focus(); }
   if (event.key.toLowerCase() === 'n') { event.preventDefault(); importModal(); }
@@ -575,7 +578,14 @@ async function reloadLibrary() {
   state.compareIds=new Set((await getSetting('comparisonSelection') || []).filter(id=>state.papers.some(p=>p.id===id)));
   lastRemoval = await getSetting('lastRemoval') || null;
 }
-reader=createPDFReader({escape,toast,getPaper:id=>state.papers.find(p=>p.id===id),getNotes:()=>state.notes,renderText:body=>notes.renderText(body),beforeOpen:closeModal,openTag:tag=>notes.open('tag',tag),readPDF:async p=>native?native.readPdf(p.id):p.file?new Uint8Array(await p.file.arrayBuffer()):Promise.reject(new Error('这条文献没有 PDF 文件')),getPosition:()=>getSetting('readerState'),getDrafts:()=>getSetting('readerDrafts'),saveDrafts:value=>{if(native&&!state.desktopInfo?.readerDraftsVersion)return Promise.reject(new Error('请重新启动 Materia 以启用本地草稿；内容仍保留在编辑区，也可先正式保存笔记。'));return setSetting('readerDrafts',value);},savePosition:value=>native&&!state.desktopInfo?.readerNotesVersion?Promise.resolve():setSetting('readerState',value),saveNote:async(id,note)=>{const key='paper:'+id,list=state.notes[key]||[],next={...state.notes,[key]:[...list.filter(n=>n.id!==note.id),note]};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},deleteNote:async(id,noteId)=>{const key='paper:'+id,next={...state.notes,[key]:(state.notes[key]||[]).filter(n=>n.id!==noteId)};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},openExternal:async p=>{if(native)return native.openPdf(p.id);if(!p.file)throw new Error('没有 PDF 文件');const url=URL.createObjectURL(p.file),win=window.open(url,'_blank');if(win)win.opener=null;setTimeout(()=>URL.revokeObjectURL(url),60000);}});
+async function openStudySource(source){
+  const paper=state.papers.find(row=>row.id===source.paperId);
+  if(!paper)throw new Error('原文献已不在当前文献库，词义和摘录仍保留在生词本。');
+  if(source.fingerprint&&paper.fingerprint&&source.fingerprint!==paper.fingerprint)throw new Error('这篇文献的 PDF 已更换，原页码可能不同；可在文献列表打开新版。');
+  await reader.openAt(paper.id,source.page);
+}
+vocabularyController=createVocabularyController({escape,saveText,openSource:openStudySource});
+reader=createPDFReader({escape,toast,saveText,openStudySource,translate:(...args)=>agentController.translate(...args),translationStatus:()=>agentController.serviceStatus(),configureTranslation:async()=>{if(await reader.close())await agentController.openSettings();},getPaper:id=>state.papers.find(p=>p.id===id),getNotes:()=>state.notes,renderText:body=>notes.renderText(body),beforeOpen:closeModal,openTag:tag=>notes.open('tag',tag),readPDF:async p=>native?native.readPdf(p.id):p.file?new Uint8Array(await p.file.arrayBuffer()):Promise.reject(new Error('这条文献没有 PDF 文件')),getPosition:()=>getSetting('readerState'),getDrafts:()=>getSetting('readerDrafts'),saveDrafts:value=>{if(native&&!state.desktopInfo?.readerDraftsVersion)return Promise.reject(new Error('请重新启动 Materia 以启用本地草稿；内容仍保留在编辑区，也可先正式保存笔记。'));return setSetting('readerDrafts',value);},savePosition:value=>native&&!state.desktopInfo?.readerNotesVersion?Promise.resolve():setSetting('readerState',value),saveNote:async(id,note)=>{const key='paper:'+id,list=state.notes[key]||[],next={...state.notes,[key]:[...list.filter(n=>n.id!==note.id),note]};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},deleteNote:async(id,noteId)=>{const key='paper:'+id,next={...state.notes,[key]:(state.notes[key]||[]).filter(n=>n.id!==noteId)};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},openExternal:async p=>{if(native)return native.openPdf(p.id);if(!p.file)throw new Error('没有 PDF 文件');const url=URL.createObjectURL(p.file),win=window.open(url,'_blank');if(win)win.opener=null;setTimeout(()=>URL.revokeObjectURL(url),60000);}});
 associationController=createAssociationController({escape,showModal,toast,getPapers:papers,getVisible:visiblePapers,getRules:()=>state.associations,save:async rules=>{const clean=cleanAssociations(rules);await setSetting('graphAssociations',clean);state.associations=clean;},changed:render});
 themeController=createThemeController({escape,showModal,toast,saveText,persist:async value=>{if(native&&!(Number(state.desktopInfo?.themeSchemaVersion)>=2))throw new Error('请重新启动 Materia 后再保存主题，当前桌面存储接口尚未支持完整主题包。');if(native&&!(Number(state.desktopInfo?.graphThemeVersion)>=1))throw new Error('请重新启动 Materia 后再保存主题，当前桌面存储接口尚未支持星图主题。');await setSetting('themePreferences',value);},changed:()=>{map.applyAppearance();}});
 parameterFinder=createParameterFinder({escape,showModal,toast,getPapers:papers,apply:applyParameterFilter});
@@ -630,3 +640,4 @@ researchCanvas=createResearchCanvas({flushBeforeExit:()=>comparison.flushSelecti
 });
 agentController = createAgentController({ getPapers: papers, getNotes: () => state.notes, getSelectedIds: () => state.compareIds.size ? [...state.compareIds] : (state.selected ? [state.selected] : []), getSetting, setSetting, isReady: () => state.ready && !state.storageError, openPaper: id => { if (!state.papers.some(p => p.id === id)) { toast('这篇文献已不在当前文献库。'); return; } state.nav='all'; resetFilters(false); state.detailOpen=true; state.selected=id; render(); selectPaper(id,true); } });
 init();
+

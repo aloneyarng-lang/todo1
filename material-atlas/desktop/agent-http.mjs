@@ -1,9 +1,10 @@
-import { completeWithProvider } from './agent.mjs';
+import { translateText } from './translation.mjs';
+import { completeWithProvider,testAgentConnection } from './agent.mjs';
 import { AGENT_TOOLS } from '../dist/ai-agent-core.js';
 
 // Preview uses a same-origin, loopback-only proxy; credentials remain session-only.
 export async function handleAgentRequest(req, res) {
-  if (req.url !== '/api/ai-agent/complete') return false;
+  if (!['/api/ai-agent/complete','/api/ai-agent/test','/api/translation'].includes(req.url)) return false;
   const host = req.headers.host || '';
   const validHost = /^(?:127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(host);
   if (!validHost || req.method !== 'POST' || req.headers['x-materia-agent'] !== '1' || !String(req.headers['content-type']).startsWith('application/json') || req.headers.origin !== `http://${host}`) {
@@ -18,6 +19,8 @@ export async function handleAgentRequest(req, res) {
     // Decode only after all chunks to preserve split UTF-8 sequences.
     let payload;
     try { payload = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('请求格式无效。'); }
+    if(req.url==='/api/ai-agent/test'){const result=await testAgentConnection(payload.config,{signal:controller.signal});res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(result));return true;}
+    if(req.url==='/api/translation'){const result=await translateText(payload.config,payload.request,{signal:controller.signal});res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(result));return true;}
     if (!Array.isArray(payload.messages) || payload.messages.length > 100 || payload.messages.some(m => !m || !['system','user','assistant','tool'].includes(m.role))) throw new Error('对话格式无效。');
     const result = await completeWithProvider(payload.config, { messages: payload.messages, tools: AGENT_TOOLS, signal: controller.signal });
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result));

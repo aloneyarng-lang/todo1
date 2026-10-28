@@ -1,6 +1,7 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {cleanAgentKey,agentCredentialIssue,agentHTTPError} from '../dist/agent-auth.js';
 
 export function normalizeAgentConfig(value = {}) {
   let url;
@@ -11,8 +12,7 @@ export function normalizeAgentConfig(value = {}) {
   if (!model || model.length > 200) throw new Error('请填写服务支持的模型名称。');
   const protocol = value.protocol || 'chat';
   if (!['chat', 'responses'].includes(protocol)) throw new Error('API 协议无效。');
-  const apiKey = String(value.apiKey || '').trim();
-  if (apiKey.length > 4096 || /[\r\n]/.test(apiKey)) throw new Error('API 密钥格式无效。');
+  const apiKey = cleanAgentKey(value.apiKey);
   const baseUrl = url.href.replace(/\/(?:chat\/completions|responses)\/?$/, '').replace(/\/$/, '');
   return { baseUrl, model, protocol, apiKey, rememberKey: Boolean(value.rememberKey) };
 }
@@ -38,11 +38,10 @@ export class AgentSettings {
     const { apiKey, ...config } = this.config || { baseUrl: 'https://api.openai.com/v1', model: '', protocol: 'chat', apiKey: '', rememberKey: false };
     return { ...config, hasKey: Boolean(apiKey), canRememberKey: this.canRememberKey };
   }
+  resolve(value){const clean=normalizeAgentConfig(value);return{...clean,apiKey:value.clearKey?'':(clean.apiKey||(this.config?.baseUrl===clean.baseUrl?this.config.apiKey:''))};}
   save(value) {
     const operation = this.queue.then(async () => {
-      const previous = this.config;
-      const clean = normalizeAgentConfig(value);
-      const next = { ...clean, apiKey: value.clearKey ? '' : (clean.apiKey || (previous?.baseUrl === clean.baseUrl ? previous.apiKey : '')) };
+      const next = this.resolve(value);
       if (next.rememberKey && !await this.encryptionAvailable()) throw new Error('系统加密不可用。请取消“记住密钥”，仅在本次运行使用。');
       const { apiKey, ...stored } = next;
       if (apiKey && next.rememberKey) stored.encryptedKey = (await (this.encryption.encryptStringAsync ? this.encryption.encryptStringAsync(apiKey) : this.encryption.encryptString(apiKey))).toString('base64');
@@ -58,8 +57,28 @@ export class AgentSettings {
   }
 }
 
+// GET /models validates transport and credentials without submitting prompts or literature.
+export async function testAgentConnection(value,{signal}={},fetcher=fetch){
+  let config;try{config=normalizeAgentConfig(value);}catch(error){return{ok:false,stage:'configuration',message:error.message};}
+  const keyProvided=Boolean(config.apiKey),host=new URL(config.baseUrl).hostname,base={host,keyProvided,model:config.model};
+  const issue=agentCredentialIssue(config);if(issue)return{...base,ok:false,stage:'configuration',message:issue};
+  const abort=AbortSignal.any([...(signal?[signal]:[]),AbortSignal.timeout(15000)]);
+  let response;
+  try{response=await fetcher(config.baseUrl+'/models',{method:'GET',headers:{Accept:'application/json',...(keyProvided?{Authorization:`Bearer ${config.apiKey}`}:{})},signal:abort,redirect:'error'});}
+  catch{return{...base,ok:false,stage:'network',message:abort.aborted?'连接检测已停止或超时，请检查网络后重试。':'无法连接服务，请检查地址、网络或证书。'};}
+  if(!response.ok){await response.body?.cancel();return{...base,ok:false,stage:'http',httpStatus:response.status,message:agentHTTPError(response.status,keyProvided)};}
+  let data;
+  try{
+    const reader=response.body.getReader(),decoder=new TextDecoder();let size=0,raw='';
+    while(true){const{done,value}=await reader.read();if(done)break;size+=value.length;if(size>1024*1024){await reader.cancel();throw new Error('too large');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();data=JSON.parse(raw);
+  }catch{return{...base,ok:false,stage:'response',httpStatus:response.status,message:'模型列表未返回可识别的 JSON，请检查 API 地址；部分兼容服务不支持模型列表。'};}
+  if(!Array.isArray(data?.data))return{...base,ok:false,stage:'response',httpStatus:response.status,message:'模型列表格式无法识别，请检查地址或确认服务支持 GET /models。'};
+  const modelAvailable=data.data.some(row=>row?.id===config.model);
+  return{...base,ok:true,stage:'authenticated',httpStatus:response.status,modelAvailable,message:modelAvailable?'连接检测通过，服务接受了本次请求，当前模型在返回列表中。':'服务接受了本次请求，但列表中没有当前模型，请核对模型名称。'};
+}
+
 function providerBody(config, messages, tools) {
-  if (config.protocol === 'chat') return { model: config.model, messages: messages.map(({providerOutput,...message})=>message), tools: tools.map(tool => ({ type: 'function', function: tool })), tool_choice: 'auto', stream: false };
+  if (config.protocol === 'chat') return { model: config.model, messages: messages.map(({providerOutput,...message})=>message), ...(tools.length?{tools:tools.map(tool => ({ type: 'function', function: tool })),tool_choice:'auto'}:{}), stream: false };
   const input = [];
   for (const message of messages) {
     if (message.role === 'tool') input.push({ type: 'function_call_output', call_id: message.tool_call_id, output: message.content });
@@ -69,11 +88,12 @@ function providerBody(config, messages, tools) {
       for (const call of message.tool_calls || []) input.push({ type: 'function_call', call_id: call.id, name: call.function.name, arguments: call.function.arguments });
     }
   }
-  return { model: config.model, input, tools: tools.map(tool => ({ type: 'function', ...tool, strict: false })), tool_choice: 'auto', store: false, include: ['reasoning.encrypted_content'], stream: false };
+  return { model: config.model, input, ...(tools.length?{tools:tools.map(tool => ({ type: 'function', ...tool, strict: false })),tool_choice:'auto'}:{}), store: false, include: ['reasoning.encrypted_content'], stream: false };
 }
 
-export async function completeWithProvider(configValue, { messages, tools, signal }, fetcher = fetch) {
+export async function completeWithProvider(configValue, { messages, tools = [], signal }, fetcher = fetch) {
   const config = normalizeAgentConfig(configValue);
+  const issue=agentCredentialIssue(config);if(issue)throw new Error(issue);
   const abort = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(90000)]);
   let response;
   try {
@@ -83,7 +103,7 @@ export async function completeWithProvider(configValue, { messages, tools, signa
     if (abort.aborted) throw new Error('AI 服务响应超时，请重试。');
     throw new Error('无法连接 AI 服务，请检查 API 地址、网络和证书。');
   }
-  if (!response.ok) { await response.body?.cancel(); throw new Error(`AI 服务返回 HTTP ${response.status}。${response.status === 401 || response.status === 403 ? '请检查密钥和模型访问权限。' : response.status === 429 ? '请求限流或额度不足。' : '请检查地址、模型名称和 API 协议；模型需要支持工具调用。'}`); }
+  if (!response.ok) { await response.body?.cancel(); throw new Error(agentHTTPError(response.status,Boolean(config.apiKey))); }
   const reader = response.body.getReader(); let size = 0, raw = ''; const decoder = new TextDecoder();
   try {
     while (true) { const {done,value} = await reader.read(); if (done) break; size += value.length; if (size > 2 * 1024 * 1024) { await reader.cancel(); throw new Error('AI 服务返回的内容过大。'); } raw += decoder.decode(value, { stream: true }); }

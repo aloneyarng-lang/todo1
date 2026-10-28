@@ -1,13 +1,14 @@
-import {CanvasFile} from './canvases.mjs';
+﻿import {CanvasFile} from './canvases.mjs';
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } from 'electron';
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveLibraryRoot } from './library-location.mjs';
 import { LocalLibrary } from './library.mjs';
-import { AgentSettings, completeWithProvider } from './agent.mjs';
+import { AgentSettings, completeWithProvider,testAgentConnection } from './agent.mjs';
 import { runResearchAgent } from '../dist/ai-agent-core.js';
 import { AgentHistoryFile } from './agent-history.mjs';
+import { translateText } from './translation.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 app.commandLine.appendSwitch('force-renderer-accessibility');
@@ -15,7 +16,9 @@ const profile = process.env.MATERIA_PROFILE_DIR || (app.isPackaged ? app.getPath
 app.setPath('userData', profile);
 let mainWindow, library, agentHistory, canvasStore;
 let canvasCloseReady=false,canvasAllowClose=false;
-let agentRun = null;
+let agentRun = null,connectionTest=null;
+const translationRuns=new Map();
+function cancelTranslations(){for(const controller of translationRuns.values())controller.abort();connectionTest?.abort();}
 const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
 else {
@@ -26,7 +29,7 @@ app.on('window-all-closed', () => app.quit());
 let quitPending=false;
 app.on('before-quit',event=>{
   if(!agentHistory||quitPending)return;
-  event.preventDefault();quitPending=true;agentRun?.controller.abort();
+  event.preventDefault();quitPending=true;agentRun?.controller.abort();cancelTranslations();
   Promise.allSettled([agentHistory.queue,library.queue,canvasStore?.queue]).then(()=>app.quit());
 });
 
@@ -70,7 +73,20 @@ async function start() {
   handle('library:merge-backup', backup => library.mergeBackup(backup));
   handle('library:read-pdf', id => library.readPdf(id));
   handle('library:info', () => library.info());
-  handle('agent:get-config', () => agentSettings.publicConfig());
+  handle('study:read',async()=>{const store=library;await store.queue;return{libraryKey:store.root,...store.getStudy()};});
+  handle('study:update',payload=>{if(!payload||payload.libraryKey!==library.root)throw new Error('文献库已切换，阅读记录未写入其他文献库。');return library.updateStudy(payload.operation);});
+  handle('translation:cancel',id=>translationRuns.get(id)?.abort());
+  handle('translation:run',async payload=>{
+    if(!payload||typeof payload.id!=='string'||!/^[a-z\d_-]{1,120}$/i.test(payload.id)||translationRuns.has(payload.id))throw new Error('翻译请求标识无效。');
+    if(translationRuns.size>=3)throw new Error('翻译请求过多，请等待或停止当前翻译。');
+    if(!agentSettings.config?.model)throw new Error('请先在 AI 研究助手中保存服务地址和模型。');
+    const controller=new AbortController();translationRuns.set(payload.id,controller);
+    try{return await translateText({...agentSettings.config},payload.request,{signal:controller.signal});}
+    catch(error){return{error:controller.signal.aborted?'翻译已停止。':error.message,canceled:controller.signal.aborted};}
+    finally{translationRuns.delete(payload.id);}
+  });
+  const publicAgentConfig=()=>({...agentSettings.publicConfig(),appVersion:app.getVersion()});
+  handle('agent:get-config', publicAgentConfig);
   handle('agent:get-history', async () => { const store=agentHistory;await store.queue;return {libraryKey:store.root,state:await store.load()}; });
   handle('agent:save-history', payload => {
     if(!payload||payload.libraryKey!==agentHistory.root)throw new Error('文献库已切换，历史记录未写入其他文献库。');
@@ -82,7 +98,12 @@ async function start() {
     if (!['https:','http:'].includes(url.protocol)) throw new Error('只支持网页链接。');
     await shell.openExternal(url.href);
   });
-  handle('agent:save-config', value => agentSettings.save(value));
+  handle('agent:save-config', async value => {await agentSettings.save(value);return publicAgentConfig();});
+  handle('agent:test-connection',async value=>{
+    if(connectionTest)throw new Error('正在检测连接，请稍候。');const controller=new AbortController();connectionTest=controller;
+    try{await agentSettings.queue;return await testAgentConnection(value?agentSettings.resolve(value):agentSettings.config||{},{signal:controller.signal});}
+    finally{if(connectionTest===controller)connectionTest=null;}
+  });
   handle('agent:cancel', id => { if (agentRun?.id === id) agentRun.controller.abort(); });
   handle('agent:run', async payload => {
     if (agentRun) throw new Error('请先停止当前回答。');
@@ -102,7 +123,7 @@ async function start() {
       return { error: controller.signal.aborted ? '已停止生成。' : runSignal.aborted ? '本次研究已超时，请缩小范围后重试。' : (error.message || 'AI 请求失败，请重试。'), canceled: controller.signal.aborted };
     } finally { if (agentRun === current) agentRun = null; }
   });
-  mainWindow.on('closed', () => agentRun?.controller.abort());
+  mainWindow.on('closed', () => {agentRun?.controller.abort();cancelTranslations();});
   handle('library:open-pdf', async id => { const result = await shell.openPath(await library.pdfPath(id)); if (result) throw new Error(result); });
   handle('library:save-pdf', async id => {
     const p = library.data.papers.find(p => p.id === id); if (!p) throw new Error('找不到文献。');
@@ -115,6 +136,7 @@ async function start() {
     const chosen = await dialog.showOpenDialog(mainWindow, { title: '选择或新建文献库文件夹', defaultPath: library.root, properties: ['openDirectory', 'createDirectory'] });
     if (chosen.canceled) return null;
     agentRun?.controller.abort();
+    cancelTranslations();
     await library.queue;
     await agentHistory.queue;
     const next = await new LocalLibrary(chosen.filePaths[0]).init();
