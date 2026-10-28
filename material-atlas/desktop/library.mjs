@@ -170,6 +170,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2 };
   }
 }
