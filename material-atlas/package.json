@@ -12,6 +12,7 @@
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify:ui": "node scripts/verify-ui.cjs",
+    "verify:typography": "node scripts/verify-typography.cjs",
     "verify:agent": "node scripts/verify-agent.cjs",
     "verify:agent-desktop": "electron scripts/verify-agent-desktop.mjs",
     "verify:elastic": "node scripts/verify-elastic.cjs",

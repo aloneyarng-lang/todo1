@@ -27,6 +27,8 @@ export const FONT_OPTIONS=[
   {id:'arial',name:'Arial',stack:`Arial, 'Microsoft YaHei', sans-serif`},
 ];
 export const DEFAULT_THEME_PREFERENCES={selected:'paper',themes:[]};
+// Percentages keep the saved preference independent of theme fonts and colors.
+export function cleanFontScale(value){return typeof value==='number'&&Number.isFinite(value)?Math.round(Math.max(85,Math.min(150,value))/5)*5:100;}
 const own=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
 const safeName=value=>String(value||'自定义主题').replace(/[\r\n\u0000-\u001f]/g,' ').trim().slice(0,60)||'自定义主题';
 const colors=new Set(Object.keys(THEME_TOKENS).filter(key=>!['--serif','--sans','--radius','--theme-mode'].includes(key)));
@@ -71,7 +73,8 @@ export function cleanThemePreferences(value){
   }
   const selected=BUILTIN_THEMES.some(theme=>theme.id===value?.selected)||ids.has(value?.selected)?value.selected:'paper';
   const fonts={body:FONT_OPTIONS.some(f=>f.id===value?.fonts?.body)?value.fonts.body:'theme',heading:FONT_OPTIONS.some(f=>f.id===value?.fonts?.heading)?value.fonts.heading:'theme'};
-  return{selected,themes,...(fonts.body!=='theme'||fonts.heading!=='theme'?{fonts}:{})};
+  const fontScale=cleanFontScale(value?.fontScale);
+  return{selected,themes,...(fonts.body!=='theme'||fonts.heading!=='theme'?{fonts}:{}),...(fontScale!==100?{fontScale}:{})};
 }
 function fontTokens(preferences,tokens){const result={...tokens};for(const [role,key] of [['body','--sans'],['heading','--serif']]){const font=FONT_OPTIONS.find(f=>f.id===preferences.fonts?.[role]);if(font?.stack)result[key]=font.stack;}return result;}
 export function resolveTheme(preferences){
@@ -93,9 +96,15 @@ export function removeTheme(preferences,id){const next=cleanThemePreferences(pre
 
 export function createThemeController(config){
   let preferences=cleanThemePreferences(),busy=false;const esc=config.escape;
+  function applyFontScale(value){
+    const percent=cleanFontScale(value);document.documentElement.style.setProperty('--ui-font-scale',String(percent/100));
+    const output=document.querySelector('#theme-font-scale-value');if(output)output.textContent=`${percent}%`;
+    const control=document.querySelector('[data-theme-font-scale]');if(control){control.value=String(percent);control.setAttribute('aria-valuetext',`${percent}%`);}
+  }
   function apply(){
     const theme=resolveTheme(preferences),root=document.documentElement;
     for(const[key,value]of Object.entries(theme.tokens))root.style.setProperty(key,value);
+    applyFontScale(preferences.fontScale);
     root.dataset.theme=theme.id;root.dataset.themeMode=theme.tokens['--theme-mode'];root.style.colorScheme=theme.tokens['--theme-mode'];
     const button=document.querySelector('#ribbon-theme');if(button){button.title=`主题：${theme.name}`;button.setAttribute('aria-label',`主题切换，当前${theme.name}`);}
     requestAnimationFrame(()=>config.changed?.());return theme;
@@ -104,7 +113,8 @@ export function createThemeController(config){
   const swatches=theme=>{const t=theme.tokens;return `style="--preview-bg:${esc(t['--paper'])};--preview-surface:${esc(t['--surface'])};--preview-accent:${esc(t['--teal'])};--preview-ink:${esc(t['--ink'])};--preview-line:${esc(t['--line'])}"`;};
   function fontSettings(){
     const options=role=>FONT_OPTIONS.map(font=>`<option value="${font.id}" ${(preferences.fonts?.[role]||'theme')===font.id?'selected':''}>${esc(font.name)}</option>`).join('');
-    return `<section class="theme-fonts" aria-label="字体设置"><div class="theme-fonts-heading"><strong>字体</strong><button class="text-button" data-theme-action="reset-fonts">恢复跟随主题</button></div><div class="theme-font-selects"><label>界面与正文<select data-theme-font="body" aria-label="界面与正文字体">${options('body')}</select></label><label>文献与页面标题<select data-theme-font="heading" aria-label="文献与页面标题字体">${options('heading')}</select></label></div><div class="theme-font-preview"><strong>材料的结构与性能 · Structure &amp; Properties</strong><p>在文献之间建立关联，记录你的研究思考。Materials connect ideas.</p></div><small>即时生效，字体选择在切换主题时保留。使用电脑已安装字体；缺少字体时自动采用后备字体。PDF 原文与科研图导出保持原有字体。</small><span id="theme-font-status" role="status"></span></section>`;
+    const scale=preferences.fontScale||100;
+    return `<section class="theme-fonts" aria-label="字体设置"><div class="theme-fonts-heading"><strong>字体</strong><button class="text-button" data-theme-action="reset-fonts">恢复跟随主题</button></div><div class="theme-font-selects"><label>界面与正文<select data-theme-font="body" aria-label="界面与正文字体">${options('body')}</select></label><label>文献与页面标题<select data-theme-font="heading" aria-label="文献与页面标题字体">${options('heading')}</select></label></div><div class="theme-font-size"><div><label for="theme-font-scale">界面字号 <output id="theme-font-scale-value" for="theme-font-scale">${scale}%</output></label><button type="button" class="text-button" data-theme-action="reset-font-scale">恢复默认字号</button></div><input id="theme-font-scale" type="range" min="85" max="150" step="5" value="${scale}" data-theme-font-scale aria-label="界面字号" aria-valuetext="${scale}%" aria-describedby="theme-font-scale-help"><small id="theme-font-scale-help">拖动预览，松开后保存。适用于菜单、文献列表、笔记和 AI 聊天。</small></div><div class="theme-font-preview"><strong>材料的结构与性能 · Structure &amp; Properties</strong><p>在文献之间建立关联，记录你的研究思考。Materials connect ideas.</p></div><small>即时生效，字体与字号在切换主题时保留。使用电脑已安装字体；缺少字体时自动采用后备字体。PDF 原文与科研图导出保持原有字体。</small><span id="theme-font-status" role="status"></span></section>`;
   }
   function open(){
     const themes=[...BUILTIN_THEMES.map(theme=>({...theme,tokens:{...THEME_TOKENS,...theme.tokens}})),...preferences.themes.map(row=>({...row,description:'导入的 CSS 主题',custom:true,tokens:resolveTheme({...preferences,selected:row.id}).tokens}))];
@@ -114,10 +124,18 @@ export function createThemeController(config){
   async function save(next){if(busy)return false;busy=true;try{const clean=cleanThemePreferences(next);await config.persist(clean);preferences=clean;apply();return true;}finally{busy=false;}}
   async function importFiles(files){if(!files.length)return;const rows=[];for(const file of files){if(!/\.css$/i.test(file.name))throw new Error('请选择 .css 主题文件。');if(file.size>32768)throw new Error(`${file.name} 超过 32 KB。`);const text=await file.text(),parsed=parseThemeCSS(text,file.name);for(const[key,value]of Object.entries(parsed.tokens)){const property=key==='--theme-mode'?'color-scheme':key==='--radius'?'border-radius':['--sans','--serif'].includes(key)?'font-family':'color';if(!CSS.supports(property,value))throw new Error(`${file.name}：${key} 的 CSS 值无法识别。`);}rows.push({name:file.name,text});}const next=importThemeFiles(preferences,rows,()=>`custom-${crypto.randomUUID()}`);if(await save(next)){open();config.toast(`已导入并应用主题「${resolveTheme(preferences).name}」`);}}
   document.querySelector('#theme-input').addEventListener('change',async event=>{const files=[...event.target.files];event.target.value='';try{await importFiles(files);}catch(error){config.toast(error.message,true);}});
+  document.addEventListener('input',event=>{if(event.target.matches('[data-theme-font-scale]')&&!busy)applyFontScale(Number(event.target.value));});
   document.addEventListener('change',async event=>{
+    if(event.target.matches('[data-theme-font-scale]')){
+      if(busy){applyFontScale(preferences.fontScale);return;}
+      const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
+      try{if(await save({...preferences,fontScale:Number(event.target.value)})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='字号已保存';}}
+      catch(error){applyFontScale(preferences.fontScale);config.toast(`字号未更改：${error.message}`,true);}
+      finally{controls.forEach(control=>control.disabled=false);}return;
+    }
     const role=event.target.dataset.themeFont;if(!['body','heading'].includes(role))return;
     if(busy){event.target.value=preferences.fonts?.[role]||'theme';return;}
-    const controls=[...document.querySelectorAll('[data-theme-font]')];controls.forEach(control=>control.disabled=true);
+    const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
     try{if(await save({...preferences,fonts:{body:preferences.fonts?.body||'theme',heading:preferences.fonts?.heading||'theme',[role]:event.target.value}})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='字体已保存';}}
     catch(error){event.target.value=preferences.fonts?.[role]||'theme';config.toast(`字体未更改：${error.message}`,true);}
     finally{controls.forEach(control=>control.disabled=false);}
@@ -131,6 +149,7 @@ export function createThemeController(config){
     if(action==='export'){const theme=resolveTheme(preferences);await config.saveText(themeCSS(theme.name,theme.tokens),`materia-theme-${theme.id}.css`,'css');}
     if(action==='reset'){if(await save({...preferences,selected:'paper'})){open();config.toast('已恢复默认主题。');}}
     if(action==='reset-fonts'){if(await save({...preferences,fonts:{body:'theme',heading:'theme'}})){open();config.toast('字体已恢复跟随主题。');}}
+    if(action==='reset-font-scale'){if(await save({...preferences,fontScale:100})){open();config.toast('字号已恢复为 100%。');}}
   }catch(error){config.toast(`主题未更改：${error.message}`,true);}});
   return{load,open,importFiles,getPreferences:()=>cleanThemePreferences(preferences)};
 }
