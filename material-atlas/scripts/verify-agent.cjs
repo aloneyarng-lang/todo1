@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const root=path.resolve(__dirname,'..'),output=path.join(root,'.local','agent-verification');
-const checks=[],errors=[],requests=[];
+const checks=[],errors=[],requests=[],connectionRequests=[];
 let browser,page,preview,mock;
 const call=(name,args,id)=>({id,type:'function',function:{name,arguments:JSON.stringify(args)}});
 async function listen(server){await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return `http://127.0.0.1:${server.address().port}`;}
@@ -17,6 +17,7 @@ async function agentAction(action){await page.locator('[data-menu-toggle="agent-
 async function main(){
   await fs.mkdir(output,{recursive:true});
   mock=http.createServer(async(req,res)=>{
+    if(req.method==='GET'&&req.url==='/v1/models'){connectionRequests.push({url:req.url});res.setHeader('Content-Type','application/json');if(req.headers.authorization!=='Bearer synthetic-test-key'){res.writeHead(401);res.end('synthetic-test-key MUST NOT APPEAR');return;}res.end(JSON.stringify({data:[{id:'mock-model'}]}));return;}
     const chunks=[];for await(const c of req)chunks.push(c);const body=JSON.parse(Buffer.concat(chunks));requests.push({url:req.url,body,authorization:req.headers.authorization});
     const messages=body.messages||[],user=messages.findLastIndex(m=>m.role==='user'),question=messages[user]?.content||'';
     if(question.includes('慢请求'))return;
@@ -46,6 +47,11 @@ async function main(){
     await page.locator('#agent-base-url').fill(mockUrl+'/v1');await page.locator('#agent-model').fill('mock-model');await page.locator('#agent-key').fill('synthetic-test-key');await page.locator('#agent-config-form button[type="submit"]').click();
     await page.locator('#agent-status').filter({hasText:'设置已保存'}).waitFor();assert.equal(await page.locator('#agent-key').inputValue(),'');
     const prefs=await page.evaluate(async()=>(await import('/storage.js')).getSetting('agentPreferences'));assert.ok(!JSON.stringify(prefs).includes('synthetic-test-key'));
+  });
+  await check('connection test reuses a saved key, tests unsaved replacements without changing config, and reports redacted 401 diagnostics',async()=>{
+    await agentAction('settings');const before=requests.length;await page.locator('[data-agent-action="test-connection"]').click();await page.locator('#agent-connection-status').filter({hasText:'连接检测通过'}).waitFor();assert.match(await page.locator('#agent-connection-status').innerText(),/已附带密钥/);assert.equal(connectionRequests.length,1);assert.equal(requests.length,before);
+    await page.locator('#agent-key').fill('provider-secret');await page.locator('[data-agent-action="test-connection"]').click();await page.locator('#agent-connection-status').filter({hasText:'HTTP 401'}).waitFor();assert.equal(connectionRequests.length,2);assert.ok(!(await page.locator('#agent-connection-status').innerText()).includes('synthetic-test-key'));assert.ok(!(await page.locator('#agent-connection-status').innerText()).includes('provider-secret'));
+    await page.locator('#agent-key').fill('');await page.locator('[data-agent-action="test-connection"]').click();await page.locator('#agent-connection-status').filter({hasText:'连接检测通过'}).waitFor();assert.equal(requests.length,before);await agentAction('settings');
   });
   await check('real UI performs search, read and comparison tool rounds and renders safe citations',async()=>{
     await ask('**比较高熵合金**的屈服强度');await completed();assert.equal(requests.length,4);assert.ok(requests.every(r=>r.authorization==='Bearer synthetic-test-key'));

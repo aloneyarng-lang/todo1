@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdir,mkdtemp} from 'node:fs/promises';
 import path from 'node:path';
 import {normalizeAnchor,normalizeNotes} from '../dist/note-model.js';
-import {gestureAnnotation,transformAnnotation,annotationHTML} from '../dist/reader-annotations.js';
+import {gestureAnnotation,transformAnnotation,annotationHTML,translationAnnotation} from '../dist/reader-annotations.js';
 import {createBackup,readBackup} from '../dist/storage.js';
 import {LocalLibrary} from '../desktop/library.mjs';
 import {filterCatalog} from '../dist/catalog.js';
@@ -31,6 +31,13 @@ test('annotation SVG uses real page dimensions and escapes inline labels and ide
 });
 test('caption text is searchable without placing it in the further comment body',()=>{
   const note={id:'n',body:'Further comment',anchor:{...gestureAnnotation('text',1,{x:.2,y:.2},{x:.2,y:.2}),label:'特殊界面机制'},createdAt:1,updatedAt:1};assert.equal(filterCatalog([paper],{searchScope:'notes',query:'特殊界面机制'},{'paper:a':[note]}).length,1);assert.equal(note.body,'Further comment');
+});
+test('translated selection becomes a text annotation beside its source with full original and translation retained',()=>{
+  const value={page:2,selectionRect:{x:.1,y:.2,width:.2,height:.04},text:'Strength of alloy',translatedText:'合金强度',targetLanguage:'zh-CN',fingerprint:'a'.repeat(64)},note=translationAnnotation(value);
+  assert.equal(note.anchor.kind,'text');assert.equal(note.anchor.page,2);assert.equal(note.anchor.fingerprint,value.fingerprint);assert.equal(note.anchor.label,'译文：合金强度');assert.ok(note.anchor.rect.y>=.24);assert.match(note.body,/合金强度/);assert.match(note.body,/Strength of alloy/);assert.match(note.body,/第 2 页/);assert.equal(normalizeAnchor(note.anchor).label,note.anchor.label);
+  const bottom=translationAnnotation({...value,selectionRect:{x:.9,y:.96,width:.08,height:.03}});assert.ok(bottom.anchor.rect.y<.96);assert.ok(bottom.anchor.rect.x+bottom.anchor.rect.width<=1);assert.ok(bottom.anchor.rect.y+bottom.anchor.rect.height<=1);
+  const long='完整译文'.repeat(500),longNote=translationAnnotation({...value,translatedText:long});assert.ok(longNote.anchor.label.length<500);assert.match(longNote.anchor.label,/完整译文见详细批注/);assert.ok(longNote.body.includes(long));assert.throws(()=>translationAnnotation({...value,translatedText:'x'.repeat(40000)}),/完整保存/);
+  const html=annotationHTML(translationAnnotation({...value,translatedText:'<img src=x onerror=bad>'}).anchor,'translation',{escape:esc});assert.ok(!html.includes('<img'));assert.match(html,/&lt;img/);
 });
 test('full backup, disk reopen and bulk removal undo preserve text, arrows and their further comments',async()=>{
   const notes={'paper:a':[{id:'text',body:'Text discussion',anchor:{...gestureAnnotation('text',1,{x:.2,y:.2},{x:.2,y:.2}),label:'On-page text'},createdAt:1,updatedAt:1},{id:'arrow',body:'Arrow discussion',anchor:{...gestureAnnotation('arrow',2,{x:.2,y:.2},{x:.7,y:.6}),label:'Arrow caption'},createdAt:2,updatedAt:2}]};

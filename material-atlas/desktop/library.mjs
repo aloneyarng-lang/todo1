@@ -1,3 +1,4 @@
+import {cleanStudy,cleanVocabulary,cleanTranslationCache,cleanTranslationPreferences,applyStudyOperation,mergeVocabulary,saveTranslationCache} from '../dist/study-model.js';
 import { normalizeNotes, cleanReaderState, cleanReaderDrafts } from '../dist/note-model.js';
 import { mkdir, readFile, writeFile, rename, copyFile, stat, access } from 'node:fs/promises';
 import path from 'node:path';
@@ -33,7 +34,7 @@ export class LocalLibrary {
     const file = path.join(this.root, 'library.json');
     try {
       const parsed = JSON.parse(await readFile(file, 'utf8'));
-      if (parsed.format !== 'materia-library' || ![1,2].includes(parsed.version) || !Array.isArray(parsed.papers)) throw new Error('文献库格式不受支持。');
+      if (parsed.format !== 'materia-library' || ![1,2,3].includes(parsed.version) || !Array.isArray(parsed.papers)) throw new Error('文献库格式不受支持。');
       for (const paper of parsed.papers) if (paper.pdfPath) resolveInside(this.root, paper.pdfPath);
       this.data = parsed; this.data.settings ||= {};
       this.data.settings.mode = 'own';
@@ -50,10 +51,13 @@ export class LocalLibrary {
     }
     const metrics = seedJournalMetrics(this.data.settings.journalMetrics || []);
     if (JSON.stringify(metrics) !== JSON.stringify(this.data.settings.journalMetrics)) { this.data.settings.journalMetrics = metrics; await this.save(this.data); }
+    if(this.data.settings.translationPreferences?.instant===true){this.data.settings.translationPreferences=cleanTranslationPreferences(this.data.settings.translationPreferences);await this.save(this.data);}
     return this;
   }
   async save(data) {
+    const studyVersion=data.version===3||data.settings.vocabulary?.length||data.settings.translationCache?.length;
     if (data.papers.some(paper => paper.materials !== undefined)) data.version = 2;
+    if(studyVersion)data.version=3;
     const target = path.join(this.root, 'library.json');
     const temp = path.join(this.root, `.library-${randomUUID()}.tmp`);
     await writeFile(temp, JSON.stringify(data, null, 2), { encoding: 'utf8', flag: 'wx' });
@@ -68,7 +72,10 @@ export class LocalLibrary {
   getPapers() { return this.data.papers.map(p => materializePaper({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
-    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts'].includes(key)) throw new Error('不支持的文献库设置。');
+    if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts','vocabulary','translationCache','translationPreferences'].includes(key)) throw new Error('不支持的文献库设置。');
+    if(key==='vocabulary')value=cleanVocabulary(value);
+    if(key==='translationCache')value=cleanTranslationCache(value);
+    if(key==='translationPreferences')value=cleanTranslationPreferences(value);
     if(key==='readerDrafts')value=cleanReaderDrafts(value);
     if(key==='readerState')value=cleanReaderState(value);
     if(key==='themePreferences')value=cleanThemePreferences(value);
@@ -155,7 +162,10 @@ export class LocalLibrary {
   }
   async pdfPath(id) { const paper = this.data.papers.find(p => p.id === id); if (!paper?.pdfPath) throw new Error('找不到 PDF 文件。'); const file = resolveInside(this.root, paper.pdfPath); await access(file); return file; }
   async readPdf(id) { return new Uint8Array(await readFile(await this.pdfPath(id))); }
+  getStudy(){return cleanStudy({vocabulary:this.data.settings.vocabulary,cache:this.data.settings.translationCache,preferences:this.data.settings.translationPreferences});}
+  updateStudy(operation){return this.mutate(data=>applyStudyOperation(data.settings,operation));}
   async mergeBackup(backup) {
+    const study=backup.study?cleanStudy(backup.study):null;
     return this.mutate(async data => {
       const byId = new Map(data.papers.map(p => [p.id, p]));
       for (const input of backup.papers) { const paper = await this.preparePaper(input, byId.get(input.id)); byId.set(paper.id, paper); }
@@ -167,10 +177,11 @@ export class LocalLibrary {
       for (const [key, notes] of Object.entries(incomingNotes)) currentNotes[key] = [...new Map([...(currentNotes[key] || []), ...notes].map(n => [n.id, n])).values()];
       data.settings.notes = currentNotes; data.settings.mode = 'own';
       data.settings.journalMetrics = mergeMetrics(data.settings.journalMetrics || [], backup.journalMetrics || []);
+      if(study){data.settings.vocabulary=mergeVocabulary(data.settings.vocabulary,study.vocabulary);let cache=data.settings.translationCache||[];for(const row of study.cache)cache=saveTranslationCache(cache,row);data.settings.translationCache=cache;data.settings.translationPreferences=study.preferences;}
     });
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2 };
+    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion:1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2 };
   }
 }

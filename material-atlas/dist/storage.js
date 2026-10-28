@@ -3,6 +3,7 @@ import { normalizeAuthors, numericImpact, parseMetrics, mergeMetrics } from './c
 import { normalizePaperMaterials, materializePaper } from './materials.js';
 import { takeRemoval, restoreRemoval } from './removal.js';
 import { planBulkEdit } from './bulk-edit.js';
+import {cleanStudy,mergeVocabulary,saveTranslationCache} from './study-model.js';
 export const DB_NAME = 'materia-library-v1';
 export const BACKUP_FORMAT = 'materia-backup';
 let connection;
@@ -126,19 +127,20 @@ export function blobToBase64(blob) {
   });
 }
 
-export async function createBackup(papers, collections, notes = {}, journalMetrics = []) {
+export async function createBackup(papers, collections, notes = {}, journalMetrics = [], study) {
   const records = [];
   for (const paper of papers) {
     const { file, ...metadata } = normalizePaperMaterials(paper);
     const blob = file?.desktop ? new Blob([await native.readPdf(paper.id)], { type: 'application/pdf' }) : file;
     records.push({ ...metadata, fileBase64: blob ? await blobToBase64(blob) : null });
   }
-  return { format: BACKUP_FORMAT, version: 2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics };
+  return { format: BACKUP_FORMAT, version: study?3:2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics, ...(study?{study:cleanStudy(study)}:{}) };
 }
 
 export function readBackup(value) {
-  if (!value || value.format !== BACKUP_FORMAT || ![1,2].includes(value.version) || !Array.isArray(value.papers) || !Array.isArray(value.collections)) throw new Error('这不是受支持的 Materia 完整备份。');
+  if (!value || value.format !== BACKUP_FORMAT || ![1,2,3].includes(value.version) || !Array.isArray(value.papers) || !Array.isArray(value.collections)) throw new Error('这不是受支持的 Materia 完整备份。');
   if (value.papers.length > 10000 || value.collections.length > 500) throw new Error('备份中的记录过多，无法导入。');
+  if(value.version===3&&(!value.study||typeof value.study!=='object'||Array.isArray(value.study)))throw new Error('新版备份缺少阅读辅助数据，无法导入。');
   const collectionIds = new Set();
   const collections = value.collections.map(item => {
     if (!item || typeof item.id !== 'string' || !item.id || typeof item.name !== 'string' || !item.name.trim() || collectionIds.has(item.id)) throw new Error('备份的收藏夹格式不正确。');
@@ -176,11 +178,13 @@ export function readBackup(value) {
   });
   const notes = normalizeNotes(value.notes || {});
   const journalMetrics = Array.isArray(value.journalMetrics) && value.journalMetrics.length ? parseMetrics(JSON.stringify(value.journalMetrics)) : [];
-  return { collections, papers, notes, journalMetrics };
+  return { collections, papers, notes, journalMetrics, ...(value.version===3?{study:cleanStudy(value.study)}:{}) };
 }
 
 export async function mergeBackup(backup) {
+  const incomingStudy=backup.study?cleanStudy(backup.study):null;
   await assertRichNoteSupport(backup.notes);
+  if(native&&backup.study&&!(Number((await native.info()).studyVersion)>=1))throw new Error('请重新启动新版 Materia 后再恢复含生词和译文的备份。');
   if (native) return native.mergeBackup({ ...backup, papers: await nativePapers(backup.papers) });
   const db = await openDatabase();
   // A single transaction makes restored files and folders succeed or fail together.
@@ -203,6 +207,12 @@ export async function mergeBackup(backup) {
     };
     const metricRequest = settings.get('journalMetrics');
     metricRequest.onsuccess = () => settings.put({ key: 'journalMetrics', value: mergeMetrics(metricRequest.result?.value || [], backup.journalMetrics || []) });
+    if(incomingStudy){
+      const incoming=incomingStudy,wordRequest=settings.get('vocabulary'),cacheRequest=settings.get('translationCache');
+      wordRequest.onsuccess=()=>{try{settings.put({key:'vocabulary',value:mergeVocabulary(wordRequest.result?.value,incoming.vocabulary)});}catch(error){tx.abort();reject(error);}};
+      cacheRequest.onsuccess=()=>{try{let cache=cacheRequest.result?.value||[];for(const row of incoming.cache)cache=saveTranslationCache(cache,row);settings.put({key:'translationCache',value:cache});}catch(error){tx.abort();reject(error);}};
+      settings.put({key:'translationPreferences',value:incoming.preferences});
+    }
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error || new Error('备份恢复失败。'));
