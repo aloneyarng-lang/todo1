@@ -13,6 +13,7 @@ import { planBulkEdit } from '../dist/bulk-edit.js';
 import { cleanLayout } from '../dist/force-layout.js';
 import { cleanFigureSettings } from '../dist/figure.js';
 import { cleanGraphSettings } from '../dist/graph-settings.js';
+import { GRAPH_APPEARANCE_VERSION } from '../dist/graph-appearance.js';
 import { cleanAssociations } from '../dist/associations.js';
 import { seedJournalMetrics } from '../dist/journal-data.js';
 import { cleanThemePreferences } from '../dist/themes.js';
@@ -184,6 +185,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: 1, researchCanvasVersion: 1, materialSelectionVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1 };
   }
 }

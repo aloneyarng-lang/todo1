@@ -1,4 +1,5 @@
 import {GRAPH_THEME_TOKENS,graphAppearance,nodeGeometry,edgeGeometry} from './graph-appearance.js';
+import {CosmicBackdrop,cosmicNodeParts,cosmicPartNode} from './graph-cosmos.js';
 import { createNetwork, stepNetwork, networkSnapshot, cleanLayout } from './force-layout.js';
 import { GRAPH_DEFAULTS, cleanGraphSettings, placeNodeLabels,fitGraphViewport } from './graph-settings.js';
 import { PALETTE } from './palette.js';
@@ -16,10 +17,10 @@ export class StarMap {
   constructor(svg, callbacks) {
     Object.assign(this, callbacks);
     this.svg = svg; this.scale = 1; this.x = 0; this.y = 0;this.viewHeight=620;this.labelPositions=new Map();
-    this.cache = {}; this.nodes = []; this.selected = ''; this.paused = false; this.preferences={...GRAPH_DEFAULTS};this.collections=[];
+    this.cache = {}; this.nodes = []; this.selected = ''; this.paused = false; this.preferences={...GRAPH_DEFAULTS};this.collections=[];this.cosmos=new CosmicBackdrop(svg);
     this.bindInput();
     this.labelCanvas=document.createElement('canvas').getContext('2d');this.labelWidths=new Map();
-    this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.transform();});this.resizeObserver.observe(svg);
+    this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.cosmos.resize(height);this.transform();});this.resizeObserver.observe(svg);
   }
   configure(value,collections=[],associations=[]){this.preferences=cleanGraphSettings(value);this.collections=collections;this.associations=associations;}
   setLayout(value) { cancelAnimationFrame(this.frame); this.network = null; const normalized=cleanLayout(value),legacy=Object.keys(normalized).some(key=>key.startsWith('tag:'));this.cache=Object.fromEntries(Object.entries(normalized).filter(([key,point])=>key.startsWith('relation:')||key.startsWith('paper:')&&(!legacy||point.pinned))); }
@@ -49,8 +50,8 @@ export class StarMap {
       group.append(el('circle',{r:Math.max(14,node.radius+5),fill:'transparent',class:'node-hit-area'}));
       const ring = el('circle', { r: node.radius + 3, fill: 'none', stroke: node.color, 'stroke-width': .8, opacity: .3, class: 'node-ring' });
       const core = el('circle', { r:node.radius, fill: node.color, stroke: 'var(--canvas)', 'stroke-width': isTag ? 1.6 : 1.8, class: 'node-core' });
-      group.append(ring, core);
-      // Association nodes share the same simple circular silhouette.
+      const effectsBack=el('g',{class:'cosmic-node-effects','aria-hidden':'true'}),effectsFront=el('g',{class:'cosmic-node-effects','aria-hidden':'true'});
+      group.append(ring, effectsBack, core, effectsFront);
       const label = el('text', { x: 0, y: node.radius + 20, 'text-anchor': 'middle', class: isTag ? 'tag-node-label' : 'node-label' }, name.length > (isTag ? 22 : 40) ? name.slice(0, isTag ? 21 : 38) + '…' : name);
       group.append(label);
 
@@ -69,7 +70,7 @@ export class StarMap {
       });
       group.addEventListener('pointerleave', () => { this.highlight(this.selected); this.onHover(null); });
       this.nodeLayer.append(group);
-      return { ...node, node, paper: node.paper, group, ring, core, label, pin };
+      return { ...node, node, paper: node.paper, group, ring, core, effectsBack,effectsFront,label, pin };
     });
     if (first) for (let i = 0; i < 75; i++) stepNetwork(this.network, .8,this.preferences);
     this.applyAppearance(); this.paint(); this.highlight(selected);if(first)this.fit();else this.transform(); this.start(.6);
@@ -78,11 +79,15 @@ export class StarMap {
   applyAppearance() {
     const style=getComputedStyle(document.documentElement),tokens=Object.fromEntries(Object.keys(GRAPH_THEME_TOKENS).map(key=>[key,style.getPropertyValue(key).trim()]));
     const appearance=this.appearance=graphAppearance(tokens,this.preferences.appearance);
-    Object.assign(this.svg.dataset,{graphAppearance:this.preferences.appearance,graphBackground:appearance.background,graphFill:appearance.nodeFill});
+    Object.assign(this.svg.dataset,{graphAppearance:this.preferences.appearance,graphBackground:appearance.background,graphFill:appearance.nodeFill,graphTwinkle:appearance.twinkle,graphPaused:String(this.paused)});
+    const color=(value,fallback)=>value==='auto'?fallback:value;
+    for(const[key,value]of Object.entries({'--render-star-color':color(appearance.starColor,'var(--muted)'),'--render-nebula-color':color(appearance.nebulaColor,'var(--teal)'),'--render-nebula-secondary':color(appearance.nebulaColorSecondary,'var(--warning)'),'--render-nebula-intensity':appearance.nebulaIntensity}))this.svg.style.setProperty(key,String(value));
+    this.cosmos.sync(appearance,this.viewHeight);
     for(const[key,value]of Object.entries({'--render-node-stroke':appearance.nodeStroke+'px','--render-label-halo':appearance.labelHalo+'px','--render-glow':appearance.glow+'px','--render-label-color':appearance.labelColor==='auto'?'var(--muted)':appearance.labelColor}))this.svg.style.setProperty(key,value);
     for(const item of this.nodes){
       const node=item.node,shape=node.type==='relation'?appearance.relationShape:appearance.nodeShape,r=node.radius*appearance.nodeScale,geometry=nodeGeometry(shape,r);
-      node.visualRadius=r*(shape==='circle'?1:1.21);
+      const parts=cosmicNodeParts(shape,r,appearance);node.visualRadius=parts.radius;
+      item.effectsBack.replaceChildren(...parts.back.map(cosmicPartNode));item.effectsFront.replaceChildren(...parts.front.map(cosmicPartNode));item.group.dataset.cosmicShape=shape;
       const core=el(geometry.tag,{...geometry.attrs,class:'node-core','data-shape':shape});item.core.replaceWith(core);item.core=core;
       item.group.style.setProperty('--node-color',appearance.colorMode==='category'?node.color:node.type==='relation'?'var(--warning)':'var(--teal)');
       item.ring.setAttribute('r',node.visualRadius+3);item.ring.setAttribute('stroke',appearance.colorMode==='category'?node.color:'var(--teal)');
@@ -131,7 +136,7 @@ export class StarMap {
     if (!this.network) return;
     Object.assign(this.cache, networkSnapshot(this.network)); this.onLayout?.(cleanLayout(this.cache));
   }
-  toggleMotion() { this.paused = !this.paused; if (this.paused) { cancelAnimationFrame(this.frame);this.frame=null;this.heat=0;this.saveLayout(); } else this.start(.6); return !this.paused; }
+  toggleMotion() { this.paused = !this.paused;this.svg.dataset.graphPaused=String(this.paused); if (this.paused) { cancelAnimationFrame(this.frame);this.frame=null;this.heat=0;this.saveLayout(); } else this.start(.6); return !this.paused; }
   releasePins() {
     for(const position of Object.values(this.cache))position.pinned=false;
     for(const node of this.network?.nodes||[]){node.pinned=false;node.fx=null;node.fy=null;}

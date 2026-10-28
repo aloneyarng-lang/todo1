@@ -65,7 +65,17 @@
     "labelHalo": 3,
     "glow": 0,
     "edgeColor": "auto",
-    "labelColor": "auto"
+    "labelColor": "auto",
+    "starDensity": 1,
+    "starOpacity": 0.55,
+    "starColor": "#cfe3ff",
+    "nebulaIntensity": 0.5,
+    "nebulaColor": "#6553ab",
+    "nebulaColorSecondary": "#257c9b",
+    "orbitScale": 1.65,
+    "orbitTilt": 25,
+    "twinkle": "off",
+    "seed": 42
   },
   "ui": {
     "style": "technical",

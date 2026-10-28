@@ -9,6 +9,7 @@ const stage = path.join(root, '.local', `desktop-stage-v${version}`);
 const iconPath = await makeIcon();
 await mkdir(path.join(stage, 'dist'), { recursive: true });
 await mkdir(path.join(stage, 'desktop'), { recursive: true });
+await copyFile(path.join(root,'dist','graph-cosmos.js'),path.join(stage,'dist','graph-cosmos.js'));
 for (const file of ['agent-auth.js','study-model.js','study-client.js','reader-study.js','vocabulary-ui.js','study.css','ai-agent.js','ai-agent-core.js','ai-agent.css','agent-markdown.js','agent-history.js']) await copyFile(path.join(root,'dist',file),path.join(stage,'dist',file));
 await copyFile(path.join(root,'desktop','agent.mjs'),path.join(stage,'desktop','agent.mjs'));
 await copyFile(path.join(root,'desktop','agent-history.mjs'),path.join(stage,'desktop','agent-history.mjs'));
@@ -22,7 +23,7 @@ const paths = await packager({ dir: stage, name: 'Materia', executableName: 'Mat
 for (const output of paths) {
   await cp(path.join(root,'theme-examples'),path.join(output,'theme-examples'),{recursive:true});
   await copyFile(path.join(root,'AI_AGENT.md'),path.join(output,'AI_AGENT.md'));
-  for (const file of ['TRANSLATION.md','README.md', 'THEMES.md', 'RESEARCH_CANVAS.md', 'MATERIAL_COMPARISON.md', 'canvas-example.canvas.md', 'theme-template.css', 'theme-template.mtheme.json', 'DATA_IMPORT.md', 'metadata-template.md', 'metadata-template.json', 'journal-metrics-template.csv', 'journal-metrics-2025.csv']) await copyFile(path.join(root, file), path.join(output, file));
+  for (const file of ['TRANSLATION.md','README.md', 'GRAPH_THEME_API.md', 'THEMES.md', 'RESEARCH_CANVAS.md', 'MATERIAL_COMPARISON.md', 'canvas-example.canvas.md', 'theme-template.css', 'theme-template.mtheme.json', 'DATA_IMPORT.md', 'metadata-template.md', 'metadata-template.json', 'journal-metrics-template.csv', 'journal-metrics-2025.csv']) await copyFile(path.join(root, file), path.join(output, file));
   await writeFile(path.join(output, '使用说明.txt'), '双击 Materia.exe 启动。\r\n请保留整个程序文件夹，不要单独移动 exe。\r\n文献默认保存在程序旁的「文献库」文件夹，可在「文献库与备份」中选择其他目录。\r\npapers 中保存原始 PDF，library.json 保存标题、标签、收藏夹与多条笔记。\r\n文献管理可离线运行，无需安装 Node.js。AI 研究助手需配置兼容服务的 API 地址、模型和密钥，详见 AI_AGENT.md。\r\n');
   console.log(path.join(output, 'Materia.exe'));
 }

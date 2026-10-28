@@ -5,7 +5,7 @@ export function cleanGraphSettings(value = {}) {
   output.localDepth=Math.round(output.localDepth);
   for(const key of ['showRelations','localMode'])if(typeof value[key]==='boolean')output[key]=value[key];
   if(['tag','journal','collection'].includes(value.colorBy))output.colorBy=value.colorBy;
-  if(['theme','classic','orbital','crystal'].includes(value.appearance))output.appearance=value.appearance;
+  if(['theme','classic','orbital','crystal','cosmos'].includes(value.appearance))output.appearance=value.appearance;
   return output;
 }
 

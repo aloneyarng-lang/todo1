@@ -1,6 +1,6 @@
 {
   "name": "materia-atlas",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",
@@ -21,6 +21,8 @@
     "build:force-vendor": "node scripts/build-force-vendor.mjs",
     "verify:release-ui": "node scripts/verify-release-ui.cjs",
     "verify:themes": "node scripts/verify-themes.cjs",
+    "verify:cosmos": "node scripts/verify-cosmos.cjs",
+    "verify:cosmos-desktop": "node scripts/verify-cosmos-desktop.cjs",
     "verify:canvas": "node scripts/verify-canvas.cjs",
     "verify:canvas-desktop": "node scripts/verify-canvas-desktop.cjs",
     "verify:material-selection": "node scripts/verify-material-selection.cjs",

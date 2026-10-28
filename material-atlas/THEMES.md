@@ -154,7 +154,7 @@ node scripts/pack-theme.mjs theme-examples/blueprint-source/manifest.json output
 
 ## 星图外观：CSS 和完整主题包都能控制
 
-星图右上角「设置」→「星图形态」，可选择「跟随主题包」「经典圆点」「轨道圆环」「晶格节点」。手动选择优先于主题，随当前文献库保存，切换主题和重启后保留；选择「跟随主题包」恢复主题设计。外观切换复用当前节点与连线，保留坐标、固定状态、视图中心及缩放。窗口尺寸因主题变化时按新的可见高度保持视图中心。
+星图右上角「设置」→「星图形态」，可选择「跟随主题包」「经典圆点」「轨道圆环」「晶格节点」「宇宙星野」。手动选择优先于主题，随当前文献库保存，切换主题和重启后保留；选择「跟随主题包」恢复主题设计。外观切换复用当前节点与连线，保留坐标、固定状态、视图中心及缩放。窗口尺寸因主题变化时按新的可见高度保持视图中心。
 
 三个方案分别使用圆点/直线、空心圆环/曲线、六边形/菱形/虚线。这里的形态指节点、连线和画布外观；原有自然力学、筛选和手工关联规则继续生效。主题不会产生额外关系，也不会改写文献信息。标签颜色分组仍可使用，主题也可用 `colorMode: accent` 统一为主题强调色，关联节点用辅助金色。
 
@@ -197,11 +197,11 @@ CSS 示例（不需要安装新字体或程序）：
 
 | `graph` 字段 | 对应 CSS 变量 | 可选值或范围 |
 | --- | --- | --- |
-| nodeShape / relationShape | --graph-node-shape / --graph-relation-shape | circle / diamond / hexagon / square |
+| nodeShape / relationShape | --graph-node-shape / --graph-relation-shape | circle / diamond / hexagon / square / star / planet |
 | nodeFill | --graph-node-fill | solid / hollow |
 | edgeStyle | --graph-edge-style | straight / curve |
 | edgeDash | --graph-edge-dash | solid / dashed / dotted |
-| background | --graph-background | plain / dots / grid |
+| background | --graph-background | plain / dots / grid / stars / nebula |
 | colorMode | --graph-color-mode | category / accent |
 | nodeScale | --graph-node-scale | 0.7–1.8 |
 | nodeStroke | --graph-node-stroke | 0.4–3，屏幕描边宽度 |
@@ -221,3 +221,8 @@ JSON 数值直接写数字，不带单位；CSS 的 `labelHalo`、`glow` 带 `px
 主题已内置，也提供独立文件 `theme-examples/buaa-blue.mtheme.json`（完整面板、字体、图标与星图方案）和 `theme-examples/buaa-blue.css`（颜色和星图变量）。选择后默认显示蓝色空心圆环、金色菱形关联节点、柔和曲线和稀疏点阵背景，无需额外下载资源。
 
 设计参考北航官方[色彩规范](https://xcb.buaa.edu.cn/info/1091/2057.htm)及[学校章程第七十八条](https://xxgk.buaa.edu.cn/info/1002/1133.htm)中的北航蓝、蓝白与卫星轨道意象。章程给出印刷色 C100 M60 Y0 K0；本主题为屏幕阅读选用 `#005BAC`，是界面适配色，不宣称是官方指定的 RGB 色值。主题由 Materia 制作，不包含校徽文件。
+
+
+## 宇宙星图与可扩展主题接口 v2（1.4.5）
+
+主题包新增恒星、带环行星、远景星野和双色星云；可配置星野密度、颜色、星云浓度、光环倾角与大小、缓慢闪烁及固定种子。字段通过原有 graph 对象和 CSS 变量导入、预览、保存及导出，不依赖主题名称。旧包继续可用。完整字段表、最小 JSON/CSS 示例、兼容与行为约定见 [GRAPH_THEME_API.md](GRAPH_THEME_API.md)。星图设置也提供「宇宙星野」手动方案。

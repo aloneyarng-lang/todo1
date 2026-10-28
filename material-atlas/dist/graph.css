@@ -16,3 +16,23 @@
 .graph-help{opacity:.75}.graph-controls,.graph-tooltip{backdrop-filter:none}
 .graph-appearance-help{font-size:.75rem;color:var(--muted);line-height:1.8;margin:10px 0 0}
 @media(prefers-reduced-motion:reduce){#star-map .graph-node,#star-map .node-ring,#star-map .network-edges path{transition:none}}
+/* Cosmic graph API v2. Scenery never participates in input, labels or physics. */
+#star-map[data-graph-background="stars"],#star-map[data-graph-background="nebula"]{background-image:none}
+#star-map .cosmic-backdrop{pointer-events:none;overflow:hidden;isolation:isolate}
+#star-map .cosmic-nebula{opacity:var(--render-nebula-intensity,.5)}
+#star-map .cosmic-distant-star{fill:var(--render-star-color,#cfe3ff);stroke:var(--render-star-color,#cfe3ff)}
+#star-map .cosmic-distant-star circle{stroke:none}
+#star-map .cosmic-node-effects{pointer-events:none}
+#star-map .cosmic-corona{fill:var(--node-color);stroke:none}
+#star-map .cosmic-star-core{fill:var(--ink);stroke:none}
+#star-map .cosmic-orbit-back,#star-map .cosmic-orbit-front{fill:none;stroke:var(--node-color);stroke-width:.85px;vector-effect:non-scaling-stroke}
+#star-map .cosmic-orbit-back{opacity:.35}
+#star-map .cosmic-orbit-front{opacity:.8}
+#star-map .cosmic-planet-shade{fill:var(--canvas);opacity:.48;stroke:none}
+#star-map .cosmic-planet-sheen{fill:var(--ink);opacity:.32;stroke:none}
+#star-map .graph-node[data-cosmic-shape="star"] .node-core{stroke:var(--node-color);stroke-width:.35px}
+#star-map .graph-node[data-cosmic-shape="planet"] .node-core{stroke:var(--node-color);stroke-width:.5px}
+#star-map[data-graph-twinkle="subtle"] .cosmic-twinkle{animation:cosmic-twinkle var(--twinkle-duration,9s) ease-in-out var(--twinkle-delay,0s) infinite alternate}
+#star-map[data-graph-paused="true"] .cosmic-twinkle,#star-map.dragging .cosmic-twinkle{animation-play-state:paused}
+@keyframes cosmic-twinkle{from{filter:brightness(.72)}to{filter:brightness(1.35)}}
+@media(prefers-reduced-motion:reduce){#star-map .cosmic-twinkle{animation:none!important}}
