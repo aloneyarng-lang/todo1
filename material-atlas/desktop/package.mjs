@@ -1,10 +1,11 @@
 import { packager } from '@electron/packager';
-import { mkdir, copyFile, writeFile, cp } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, cp, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeIcon } from './icon.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const stage = path.join(root, '.local', 'desktop-stage-v12');
+const {version,devDependencies} = JSON.parse(await readFile(path.join(root,'package.json'),'utf8'));
+const stage = path.join(root, '.local', `desktop-stage-v${version}`);
 const iconPath = await makeIcon();
 await mkdir(path.join(stage, 'dist'), { recursive: true });
 await mkdir(path.join(stage, 'desktop'), { recursive: true });
@@ -16,8 +17,8 @@ await mkdir(path.join(stage, 'dist', 'vendor'), {recursive:true});
 for (const file of ['echarts.min.js','ECHARTS-LICENSE.txt','markdown-it.mjs','MARKDOWN-IT-LICENSE.txt','d3-force.mjs','D3-FORCE-LICENSE.txt']) await copyFile(path.join(root,'dist','vendor',file),path.join(stage,'dist','vendor',file));
 await cp(path.join(root,'dist/vendor/pdfjs'),path.join(stage,'dist/vendor/pdfjs'),{recursive:true});
 for (const file of ['main.mjs', 'preload.cjs', 'library.mjs', 'materia.ico', 'agent-http.mjs', 'library-location.mjs']) await copyFile(path.join(root, 'desktop', file), path.join(stage, 'desktop', file));
-await writeFile(path.join(stage, 'package.json'), JSON.stringify({ name: 'materia-desktop', productName: 'Materia', version: '1.2.0', type: 'module', main: 'desktop/main.mjs', description: '材料文献星图 · Markdown 批量导入与性能对比' }, null, 2));
-const paths = await packager({ dir: stage, name: 'Materia', executableName: 'Materia', platform: 'win32', arch: 'x64', out: path.join(root, 'release', 'v1.2.0'), overwrite: false, asar: false, prune: false, icon: iconPath, electronVersion: '45.0.0', win32metadata: { CompanyName: 'Materia', FileDescription: 'Materia · 材料文献星图', ProductName: 'Materia' } });
+await writeFile(path.join(stage, 'package.json'), JSON.stringify({ name: 'materia-desktop', productName: 'Materia', version, type: 'module', main: 'desktop/main.mjs', description: '材料文献星图 · 多材料性能对比与完整主题包' }, null, 2));
+const paths = await packager({ dir: stage, name: 'Materia', executableName: 'Materia', platform: 'win32', arch: 'x64', out: path.join(root, 'release', `v${version}`), overwrite: false, asar: false, prune: false, icon: iconPath, electronVersion: devDependencies.electron, ...(process.env.MATERIA_ELECTRON_ZIP_DIR?{electronZipDir:path.resolve(process.env.MATERIA_ELECTRON_ZIP_DIR)}:{}), win32metadata: { CompanyName: 'Materia', FileDescription: 'Materia · 材料文献星图', ProductName: 'Materia' } });
 for (const output of paths) {
   await cp(path.join(root,'theme-examples'),path.join(output,'theme-examples'),{recursive:true});
   await copyFile(path.join(root,'AI_AGENT.md'),path.join(output,'AI_AGENT.md'));

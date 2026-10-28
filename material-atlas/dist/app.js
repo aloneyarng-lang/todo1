@@ -218,7 +218,7 @@ function showModal(title, description, body, context = '') {
   hydrateIcons($('#modal')); if (!$('#modal').open) $('#modal').showModal();
   $('#graph-tooltip').hidden = true;
 }
-function closeModal() { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || removalBusy) { toast('正在保存更改，请稍候。'); return; } comparison?.dispose(); $('#modal').close(); modalContext = ''; state.pendingFiles = []; pendingRemovalIds = []; }
+function closeModal() { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || themeController?.isBusy() || removalBusy) { toast('正在保存更改，请稍候。'); return; } comparison?.dispose(); $('#modal').close(); modalContext = ''; state.pendingFiles = []; pendingRemovalIds = []; }
 function ensureStorage() { if (!state.storageError && state.ready) return true; if(!state.storageError){toast('正在打开文献库，请稍候…');return false;} toast(native ? '本地文献库不可用，请检查文件夹权限。' : '浏览器存储不可用，请使用普通浏览窗口重试。', true); return false; }
 function folderOptions(selected = '') { return '<option value="">未归入收藏夹</option>' + state.collections.map(c => `<option value="${escape(c.id)}" ${selected === c.id ? 'selected' : ''}>${escape(c.name)}</option>`).join(''); }
 function formValues(form) {
@@ -476,7 +476,7 @@ $('#pdf-input').addEventListener('change', async event => { try { await addFiles
 $('#backup-input').addEventListener('change', async event => { try { await restoreFile(event.target.files[0]); } catch (error) { toast(error.message, true); } event.target.value = ''; });
 $('#modal').addEventListener('click', event => { if (event.target === $('#modal')) { const bounds = $('#modal').getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeModal(); } });
 $('#modal').addEventListener('close', () => { comparison?.dispose(); modalContext = ''; state.pendingFiles = []; pendingRemovalIds = []; });
-$('#modal').addEventListener('cancel', event => { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || removalBusy) { event.preventDefault(); toast('正在保存更改，请稍候。'); } });
+$('#modal').addEventListener('cancel', event => { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || themeController?.isBusy() || removalBusy) { event.preventDefault(); toast('正在保存更改，请稍候。'); } });
 
 let dragDepth = 0;
 document.addEventListener('dragenter', event => { if (![...event.dataTransfer.types].includes('Files')) return; event.preventDefault(); dragDepth++; if (!$('#modal').open) $('#drop-overlay').hidden = false; else if (modalContext === 'import') $('.upload-zone')?.classList.add('dragging'); });

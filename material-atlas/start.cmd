@@ -1,6 +1,8 @@
 @echo off
 cd /d "%~dp0"
-if exist "release\v1.2.0\Materia-win32-x64\Materia.exe" (
+if exist "release\v1.3.0\Materia-win32-x64\Materia.exe" (
+  start "" "%~dp0release\v1.3.0\Materia-win32-x64\Materia.exe"
+) else if exist "release\v1.2.0\Materia-win32-x64\Materia.exe" (
   start "" "%~dp0release\v1.2.0\Materia-win32-x64\Materia.exe"
 ) else if exist "release\Materia-win32-x64\Materia.exe" (
   start "" "%~dp0release\Materia-win32-x64\Materia.exe"
