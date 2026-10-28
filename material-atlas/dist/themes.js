@@ -1,155 +1,75 @@
 import {actionMenu} from './action-menus.js';
-export const THEME_TOKENS={
-  '--paper':'#f7f7f2','--surface':'#fcfdf9','--canvas':'#fafcf7','--panel':'#f0f4ec','--sidebar':'#f1f4ed',
-  '--ink':'#2e4843','--muted':'#718174','--line':'#dce5d7','--teal':'#285d59','--teal-light':'#e7efe3','--on-accent':'#ffffff',
-  '--warning':'#9b7946','--warning-soft':'#f5efdf','--danger':'#a15d54','--danger-soft':'#f7ece8','--shadow':'#18362c1c',
-  '--serif':`Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif`,'--sans':`Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif`,
-  '--radius':'6px','--theme-mode':'light',
-};
-export const BUILTIN_THEMES=[
-  {id:'paper',name:'学术纸白',description:'柔和纸底 · 松绿与黄铜',tokens:{}},
-  {id:'academic-purple',name:'学术紫',description:'雾紫纸底 · 深紫与香槟金',tokens:{'--paper':'#f3f0f7','--surface':'#fffdfd','--canvas':'#fbf9fe','--panel':'#ede7f5','--sidebar':'#eee8f5','--ink':'#352c43','--muted':'#81758e','--line':'#ded5e9','--teal':'#705095','--teal-light':'#e8def3','--on-accent':'#ffffff','--warning':'#a48049','--warning-soft':'#f6efdf','--danger':'#a15b6c','--danger-soft':'#f9eaf0','--shadow':'#38204f18','--radius':'7px'}},
-  {id:'ocean',name:'深海蓝',description:'冷白背景 · 海蓝与石板灰',tokens:{'--paper':'#edf2f6','--surface':'#fbfdff','--canvas':'#f4f8fc','--panel':'#e8f0f7','--sidebar':'#e7eef5','--ink':'#233f55','--muted':'#667e91','--line':'#d3e0eb','--teal':'#285f8a','--teal-light':'#deebf5','--warning':'#9b7642','--shadow':'#16374f1c'}},
-  {id:'graphite',name:'石墨夜读',description:'深石墨背景 · 冰青与暖金',tokens:{'--paper':'#141c23','--surface':'#202c35','--canvas':'#18222a','--panel':'#26343e','--sidebar':'#1b262e','--ink':'#e0e9eb','--muted':'#a0b3bb','--line':'#3a4b55','--teal':'#8bc6be','--teal-light':'#304c4d','--on-accent':'#142c2b','--warning':'#dec087','--warning-soft':'#413827','--danger':'#e3aaa1','--danger-soft':'#453236','--shadow':'#00000055','--theme-mode':'dark'}},
-  {id:'sand',name:'暖砂手稿',description:'暖砂纸底 · 赭石与墨棕',tokens:{'--paper':'#f2eee6','--surface':'#fdfaf4','--canvas':'#faf5eb','--panel':'#efe6d7','--sidebar':'#ede5d8','--ink':'#4c4236','--muted':'#887969','--line':'#ded1be','--teal':'#855e3e','--teal-light':'#eadcc8','--warning':'#916a35','--shadow':'#4935211c'}},
-  {id:'wikipedia',name:'维基百科',description:'百科白底 · 蓝色链接与衬线标题',tokens:{'--paper':'#f8f9fa','--surface':'#ffffff','--canvas':'#ffffff','--panel':'#eaecf0','--sidebar':'#f8f9fa','--ink':'#202122','--muted':'#54595d','--line':'#c8ccd1','--teal':'#3366cc','--teal-light':'#eaf3ff','--warning':'#8a6000','--warning-soft':'#fef6e7','--danger':'#b32424','--danger-soft':'#fee7e6','--shadow':'#0000000a','--radius':'2px','--sans':`Arial, 'Microsoft YaHei', sans-serif`,'--serif':`'Linux Libertine', Georgia, 'Times New Roman', SimSun, serif`}},
-];
-export const FONT_OPTIONS=[
-  {id:'theme',name:'跟随主题'},
-  {id:'yahei',name:'微软雅黑',stack:`'Microsoft YaHei', 'PingFang SC', Arial, sans-serif`},
-  {id:'dengxian',name:'等线',stack:`DengXian, 'Microsoft YaHei', Arial, sans-serif`},
-  {id:'noto-sans',name:'思源黑体 / Noto Sans',stack:`'Source Han Sans SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif`},
-  {id:'simsun',name:'宋体',stack:`SimSun, 'Songti SC', 'Noto Serif SC', serif`},
-  {id:'noto-serif',name:'思源宋体 / Noto Serif',stack:`'Source Han Serif SC', 'Noto Serif CJK SC', 'Noto Serif SC', SimSun, serif`},
-  {id:'kaiti',name:'楷体',stack:`KaiTi, STKaiti, SimSun, serif`},
-  {id:'times',name:'Times New Roman',stack:`'Times New Roman', SimSun, serif`},
-  {id:'georgia',name:'Georgia',stack:`Georgia, 'Noto Serif SC', SimSun, serif`},
-  {id:'arial',name:'Arial',stack:`Arial, 'Microsoft YaHei', sans-serif`},
-];
-export const DEFAULT_THEME_PREFERENCES={selected:'paper',themes:[]};
-// Percentages keep the saved preference independent of theme fonts and colors.
-export function cleanFontScale(value){return typeof value==='number'&&Number.isFinite(value)?Math.round(Math.max(85,Math.min(150,value))/5)*5:100;}
-const own=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
-const safeName=value=>String(value||'自定义主题').replace(/[\r\n\u0000-\u001f]/g,' ').trim().slice(0,60)||'自定义主题';
-const colors=new Set(Object.keys(THEME_TOKENS).filter(key=>!['--serif','--sans','--radius','--theme-mode'].includes(key)));
-function cleanToken(key,value){
-  value=String(value).trim();
-  if(!value||value.length>500||/[{};\\]|\/\*|\*\//.test(value))throw new Error(`主题变量 ${key} 的值不正确。`);
-  if(colors.has(key)){
-    if(!/^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(value)&&! /^(?:rgb|rgba|hsl|hsla)\([\d\s.,%+\-/]+\)$/i.test(value))throw new Error(`${key} 请使用十六进制、rgb() 或 hsl() 颜色。`);
-  }else if(key==='--theme-mode'){
-    if(!['light','dark'].includes(value))throw new Error('--theme-mode 只能填写 light 或 dark。');
-  }else if(key==='--radius'){
-    if(!/^(?:\d+(?:\.\d+)?)px$/.test(value)||parseFloat(value)>20)throw new Error('--radius 请填写 0px 至 20px。');
-  }else if(!/^[\w\s'",\-\u0080-\uffff]+$/.test(value)||/["']/.test(value.replace(/"[^"\r\n]*"|'[^'\r\n]*'/g,'')))throw new Error(`${key} 请填写字体名称列表，例如 "Microsoft YaHei", sans-serif。`);
-  return value;
-}
-
-// A deliberately small CSS format: named design tokens, never arbitrary layout rules.
-export function parseThemeCSS(input,filename='自定义主题.css'){
-  if(typeof input!=='string'||input.length>32768)throw new Error('主题 CSS 需为文本，大小不超过 32 KB。');
-  const name=safeName(input.match(/\/\*\s*@name\s*:\s*([^*\r\n]+)\s*\*\//i)?.[1]||filename.replace(/\.css$/i,''));
-  const text=input.replace(/^\uFEFF/,'').replace(/\/\*[\s\S]*?\*\//g,'').trim();
-  const block=text.match(/^:root\s*\{([^{}]*)\}\s*$/);
-  if(!block)throw new Error('请使用主题模板：在 :root { … } 内填写 CSS 变量。暂不支持普通选择器、@import 或外部资源。');
-  const tokens={};
-  for(const declaration of block[1].split(';').map(part=>part.trim()).filter(Boolean)){
-    const pair=declaration.match(/^(--[\w-]+)\s*:\s*([\s\S]+)$/);
-    if(!pair||!own(THEME_TOKENS,pair[1]))throw new Error(`不支持的主题变量：${declaration.split(':')[0]}。请下载模板查看可用变量。`);
-    tokens[pair[1]]=cleanToken(pair[1],pair[2]);
-  }
-  if(!Object.keys(tokens).length)throw new Error('主题中至少需要一个有效变量。');
-  return{name,tokens};
-}
-export function themeCSS(name,tokens){
-  const label=safeName(name).replace(/[*/]/g,'');
-  return `/* @name: ${label} */\n/* Materia 主题：颜色、字体、圆角；只修改 :root 中的变量。 */\n:root {\n${Object.entries(tokens).filter(([key])=>own(THEME_TOKENS,key)).map(([key,value])=>`  ${key}: ${cleanToken(key,value)};`).join('\n')}\n}\n`;
-}
-export function cleanThemePreferences(value){
-  const themes=[],ids=new Set();
-  if(value&&Array.isArray(value.themes))for(const row of value.themes.slice(0,20)){
-    if(!row||!/^custom-[a-z\d-]{1,80}$/i.test(row.id)||ids.has(row.id))continue;
-    try{const parsed=parseThemeCSS(row.css,row.name);const name=safeName(row.name||parsed.name);themes.push({id:row.id,name,css:themeCSS(name,parsed.tokens)});ids.add(row.id);}catch{}
-  }
-  const selected=BUILTIN_THEMES.some(theme=>theme.id===value?.selected)||ids.has(value?.selected)?value.selected:'paper';
-  const fonts={body:FONT_OPTIONS.some(f=>f.id===value?.fonts?.body)?value.fonts.body:'theme',heading:FONT_OPTIONS.some(f=>f.id===value?.fonts?.heading)?value.fonts.heading:'theme'};
-  const fontScale=cleanFontScale(value?.fontScale);
-  return{selected,themes,...(fonts.body!=='theme'||fonts.heading!=='theme'?{fonts}:{}),...(fontScale!==100?{fontScale}:{})};
-}
-function fontTokens(preferences,tokens){const result={...tokens};for(const [role,key] of [['body','--sans'],['heading','--serif']]){const font=FONT_OPTIONS.find(f=>f.id===preferences.fonts?.[role]);if(font?.stack)result[key]=font.stack;}return result;}
-export function resolveTheme(preferences){
-  const prefs=cleanThemePreferences(preferences),base=BUILTIN_THEMES.find(theme=>theme.id===prefs.selected);
-  if(base)return{...base,tokens:fontTokens(prefs,{...THEME_TOKENS,...base.tokens}),custom:false};
-  const custom=prefs.themes.find(theme=>theme.id===prefs.selected),parsed=parseThemeCSS(custom.css,custom.name);
-  return{id:custom.id,name:custom.name,description:'导入的 CSS 主题',tokens:fontTokens(prefs,{...THEME_TOKENS,...parsed.tokens}),custom:true};
-}
-export function importThemeFiles(preferences,files,newId){
-  if(!Array.isArray(files)||!files.length)throw new Error('请选择 CSS 主题文件。');
-  const next=cleanThemePreferences(preferences);let lastId='';
-  // Validate the entire batch before creating a next state.
-  const parsed=files.map(file=>{try{return parseThemeCSS(file.text,file.name);}catch(error){throw new Error(`${file.name}：${error.message}`);}});
-  for(const theme of parsed){const existing=next.themes.find(row=>row.name.toLocaleLowerCase()===theme.name.toLocaleLowerCase()),id=existing?.id||newId();const row={id,name:theme.name,css:themeCSS(theme.name,theme.tokens)};if(existing)Object.assign(existing,row);else next.themes.push(row);lastId=id;}
-  if(next.themes.length>20)throw new Error('最多保存 20 个自定义主题，请先删除一些。');
-  next.selected=lastId;return cleanThemePreferences(next);
-}
-export function removeTheme(preferences,id){const next=cleanThemePreferences(preferences);next.themes=next.themes.filter(row=>row.id!==id);if(next.selected===id)next.selected='paper';return next;}
-
+import {icon} from './icons.js';
+import {createThemeRuntime,validateThemeResources} from './theme-runtime.js';
+import {THEME_TOKENS,BUILTIN_THEMES,FONT_OPTIONS,MAX_THEME_BYTES,themeCSS,themePackage,resolveTheme,cleanThemePreferences,cleanFontScale,importThemeFiles,removeTheme} from './theme-model.js';
+export * from './theme-model.js';
 export function createThemeController(config){
-  let preferences=cleanThemePreferences(),busy=false;const esc=config.escape;
-  function applyFontScale(value){
-    const percent=cleanFontScale(value);document.documentElement.style.setProperty('--ui-font-scale',String(percent/100));
-    const output=document.querySelector('#theme-font-scale-value');if(output)output.textContent=`${percent}%`;
-    const control=document.querySelector('[data-theme-font-scale]');if(control){control.value=String(percent);control.setAttribute('aria-valuetext',`${percent}%`);}
+ let preferences=cleanThemePreferences(),pending=null,busy=false,epoch=0,importRevision=0;const esc=config.escape,runtime=createThemeRuntime(()=>config.changed?.());
+ const current=()=>pending||preferences;
+ function applyFontScale(value){
+  const percent=cleanFontScale(value);document.documentElement.style.setProperty('--ui-font-scale',String(percent/100));
+  const output=document.querySelector('#theme-font-scale-value');if(output)output.textContent=`${percent}%`;
+  const control=document.querySelector('[data-theme-font-scale]');if(control){control.value=String(percent);control.setAttribute('aria-valuetext',`${percent}%`);}
+ }
+ function apply(){
+  const theme=runtime.apply(resolveTheme(current())),button=document.querySelector('#ribbon-theme');
+  applyFontScale(current().fontScale);
+  if(button){button.title=`主题：${theme.name}`;button.setAttribute('aria-label',`主题切换，当前${theme.name}`);}
+  return theme;
+ }
+ function load(value){epoch++;pending=null;preferences=cleanThemePreferences(value);apply();}
+ const swatches=theme=>{const t=theme.tokens;return `style="--preview-bg:${esc(t['--paper'])};--preview-surface:${esc(t['--surface'])};--preview-accent:${esc(t['--teal'])};--preview-ink:${esc(t['--ink'])};--preview-line:${esc(t['--line'])};--preview-radius:${theme.ui.cardRadius}px;--preview-stroke:${theme.icons.strokeWidth};--preview-font:${esc(t['--serif'])}"`;};
+ function fontSettings(){
+  const prefs=current(),options=role=>FONT_OPTIONS.map(font=>`<option value="${font.id}" ${(prefs.fonts?.[role]||'theme')===font.id?'selected':''}>${esc(font.name)}</option>`).join(''),count=Object.values(prefs.fonts||{}).filter(value=>value!=='theme').length;
+  const scale=prefs.fontScale||100;
+  return `<details class="theme-fonts"><summary>个人字体覆盖 <small>${count?count+' 项覆盖主题字体':'全部跟随主题'}</small></summary><div class="theme-fonts-heading"><strong>个人覆盖优先于主题，切换主题时保留</strong><button class="text-button" data-theme-action="reset-fonts" ${pending?'disabled':''}>恢复跟随主题</button></div><div class="theme-font-selects">${[['body','界面与正文'],['heading','文献与页面标题'],['numeric','数字与指标'],['mono','代码与等宽内容']].map(([role,label])=>`<label>${label}<select data-theme-font="${role}" aria-label="${label}字体" ${pending?'disabled':''}>${options(role)}</select></label>`).join('')}</div><div class="theme-font-size"><div class="theme-fonts-heading"><strong>界面字号</strong><button class="text-button" data-theme-action="reset-font-scale" ${pending?'disabled':''}>恢复默认字号</button></div><label for="theme-font-scale">当前缩放：<output id="theme-font-scale-value">${scale}%</output></label><input id="theme-font-scale" type="range" min="85" max="150" step="5" value="${scale}" data-theme-font-scale aria-label="界面字号" aria-valuetext="${scale}%" aria-describedby="theme-font-scale-help" ${pending?'disabled':''}><small id="theme-font-scale-help">拖动预览，松开后保存。适用于菜单、文献列表、笔记和 AI 聊天。</small></div><div class="theme-font-preview"><strong>材料的结构与性能 · Structure &amp; Properties</strong><p>在文献之间建立关联，记录你的研究思考。Materials connect ideas.</p><code>2026 · 1,250.00 MPa · sample_A</code></div><small>可选择本机字体；主题自带字体由资源包加载。PDF 原文与科研图像内部的字体不受界面主题影响。</small><span id="theme-font-status" role="status"></span></details>`;
+ }
+ function open(){
+  const prefs=current(),themes=[...BUILTIN_THEMES.map(theme=>resolveTheme({...prefs,selected:theme.id})),...prefs.themes.map(row=>resolveTheme({...prefs,selected:row.id}))];
+  config.showModal('主题与外观',pending?'正在预览导入主题，尚未写入文献库。':'内置卡片点击即应用；导入主题先预览，再保存。',`<div class="theme-intro"><p>字体、界面密度、卡片与图标组成完整外观。功能入口和快捷键保持一致。</p><div class="theme-tools"><button class="primary" data-theme-action="import" ${pending?'disabled':''}>导入主题包 / CSS</button>${actionMenu('theme-file-menu','主题文件','<button type="button" data-theme-action="template">下载完整主题模板</button><button type="button" data-theme-action="export">导出完整主题包</button><hr><button type="button" data-theme-action="template-css">旧版 CSS 模板</button><button type="button" data-theme-action="export-css">仅导出 CSS 变量</button>',{iconName:'folder'})}</div></div><div class="theme-grid">${themes.map(theme=>`<article class="theme-card ${prefs.selected===theme.id?'is-selected':''}"><button class="theme-choice" data-theme-id="${esc(theme.id)}" aria-pressed="${prefs.selected===theme.id}" ${busy||pending?'disabled':''}><span class="theme-preview" ${swatches(theme)} aria-hidden="true"><i class="theme-preview-rail"></i><i class="theme-preview-panel"><b></b><b></b><b></b></i><span class="theme-preview-sample"><strong>材料 · Materials</strong><small>结构、性能与研究记录</small><span>${icon('assistant',theme.icons)}${icon('folder',theme.icons)}${icon('chart',theme.icons)}</span></span></span><span class="theme-card-name"><strong>${esc(theme.name)}</strong><small>${prefs.selected===theme.id?pending?'预览中':'✓ 使用中':theme.tokens['--theme-mode']==='dark'?'深色':'浅色'}</small></span><span class="theme-card-description">${esc(theme.description)}</span></button>${theme.custom&&!pending?`<button class="theme-delete" data-theme-remove="${esc(theme.id)}" aria-label="删除主题 ${esc(theme.name)}" title="删除这个自定义主题">${icon('close')}</button>`:''}</article>`).join('')}</div>${fontSettings()}<p id="theme-resource-status" class="theme-format-note" role="status">${esc(runtime.status())}</p><p class="theme-format-note">支持版本 2 的 .mtheme.json 完整主题包，以及旧版 :root CSS 变量文件。完整包可内嵌字体和声明式 SVG 图标；无需保留源文件。</p><div class="modal-footer">${pending?'<button class="text-button" data-theme-action="cancel-preview">取消预览</button><button class="primary" data-theme-action="apply-import">应用并保存主题</button>':'<button class="text-button" data-theme-action="reset">恢复默认主题</button><button class="primary" data-action="close-modal">完成</button>'}</div>`,'themes');
+  requestAnimationFrame(()=>{const grid=document.querySelector('.theme-grid'),card=grid?.querySelector('.is-selected');if(grid&&card){const g=grid.getBoundingClientRect(),r=card.getBoundingClientRect();if(r.bottom>g.bottom)grid.scrollTop+=r.bottom-g.bottom+6;}});
+ }
+ async function save(next){if(busy)return false;busy=true;const ticket=epoch;try{const clean=cleanThemePreferences(next);await config.persist(clean);if(ticket!==epoch)return false;preferences=clean;pending=null;apply();return true;}finally{busy=false;}}
+ function cancelPreview(){if(!pending)return;pending=null;apply();}
+ async function importFiles(files){
+  if(!files.length||busy)return;busy=true;const ticket=epoch,revision=++importRevision;
+  try{const rows=[];for(const file of files){if(!/\.(css|json)$/i.test(file.name))throw new Error('请选择 .mtheme.json 或 .css 主题文件。');if(file.size>(/\.css$/i.test(file.name)?32768:MAX_THEME_BYTES))throw new Error(`${file.name} 超过允许大小。`);rows.push({name:file.name,text:await file.text()});}
+   const next=importThemeFiles(preferences,rows,()=>`custom-${crypto.randomUUID()}`);
+   // Decode every supplied font before displaying or persisting any theme in the batch.
+   for(const row of rows){const imported=importThemeFiles({},[row],()=> 'custom-validation');await validateThemeResources(resolveTheme(imported));}
+   if(ticket!==epoch||revision!==importRevision)return;pending=next;apply();open();
+  }finally{busy=false;}
+ }
+ document.querySelector('#theme-input').addEventListener('change',async event=>{const files=[...event.target.files];event.target.value='';try{await importFiles(files);}catch(error){config.toast(`主题未导入：${error.message}`,true);}});
+ document.querySelector('#modal').addEventListener('close',()=>{importRevision++;cancelPreview();});
+ document.addEventListener('input',event=>{if(event.target.matches('[data-theme-font-scale]')&&!busy&&!pending)applyFontScale(Number(event.target.value));});
+ document.addEventListener('change',async event=>{
+  if(event.target.matches('[data-theme-font-scale]')){
+   if(busy||pending){applyFontScale(current().fontScale);return;}
+   const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
+   try{if(await save({...preferences,fontScale:Number(event.target.value)})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='字号已保存';}}
+   catch(error){applyFontScale(preferences.fontScale);config.toast(`字号未更改：${error.message}`,true);}
+   finally{controls.forEach(control=>control.disabled=false);}return;
   }
-  function apply(){
-    const theme=resolveTheme(preferences),root=document.documentElement;
-    for(const[key,value]of Object.entries(theme.tokens))root.style.setProperty(key,value);
-    applyFontScale(preferences.fontScale);
-    root.dataset.theme=theme.id;root.dataset.themeMode=theme.tokens['--theme-mode'];root.style.colorScheme=theme.tokens['--theme-mode'];
-    const button=document.querySelector('#ribbon-theme');if(button){button.title=`主题：${theme.name}`;button.setAttribute('aria-label',`主题切换，当前${theme.name}`);}
-    requestAnimationFrame(()=>config.changed?.());return theme;
-  }
-  function load(value){preferences=cleanThemePreferences(value);apply();}
-  const swatches=theme=>{const t=theme.tokens;return `style="--preview-bg:${esc(t['--paper'])};--preview-surface:${esc(t['--surface'])};--preview-accent:${esc(t['--teal'])};--preview-ink:${esc(t['--ink'])};--preview-line:${esc(t['--line'])}"`;};
-  function fontSettings(){
-    const options=role=>FONT_OPTIONS.map(font=>`<option value="${font.id}" ${(preferences.fonts?.[role]||'theme')===font.id?'selected':''}>${esc(font.name)}</option>`).join('');
-    const scale=preferences.fontScale||100;
-    return `<section class="theme-fonts" aria-label="字体设置"><div class="theme-fonts-heading"><strong>字体</strong><button class="text-button" data-theme-action="reset-fonts">恢复跟随主题</button></div><div class="theme-font-selects"><label>界面与正文<select data-theme-font="body" aria-label="界面与正文字体">${options('body')}</select></label><label>文献与页面标题<select data-theme-font="heading" aria-label="文献与页面标题字体">${options('heading')}</select></label></div><div class="theme-font-size"><div><label for="theme-font-scale">界面字号 <output id="theme-font-scale-value" for="theme-font-scale">${scale}%</output></label><button type="button" class="text-button" data-theme-action="reset-font-scale">恢复默认字号</button></div><input id="theme-font-scale" type="range" min="85" max="150" step="5" value="${scale}" data-theme-font-scale aria-label="界面字号" aria-valuetext="${scale}%" aria-describedby="theme-font-scale-help"><small id="theme-font-scale-help">拖动预览，松开后保存。适用于菜单、文献列表、笔记和 AI 聊天。</small></div><div class="theme-font-preview"><strong>材料的结构与性能 · Structure &amp; Properties</strong><p>在文献之间建立关联，记录你的研究思考。Materials connect ideas.</p></div><small>即时生效，字体与字号在切换主题时保留。使用电脑已安装字体；缺少字体时自动采用后备字体。PDF 原文与科研图导出保持原有字体。</small><span id="theme-font-status" role="status"></span></section>`;
-  }
-  function open(){
-    const themes=[...BUILTIN_THEMES.map(theme=>({...theme,tokens:{...THEME_TOKENS,...theme.tokens}})),...preferences.themes.map(row=>({...row,description:'导入的 CSS 主题',custom:true,tokens:resolveTheme({...preferences,selected:row.id}).tokens}))];
-    config.showModal('主题与外观','切换后即时生效，并保存在当前本地文献库。',`<div class="theme-intro"><p>选择一套适合阅读的配色，或导入自己的 CSS 变量主题。科研图导出始终保持白底。</p><div class="theme-tools"><button class="primary" data-theme-action="import">导入 CSS 主题</button>${actionMenu('theme-file-menu','主题文件','<button type="button" data-theme-action="template">下载 CSS 模板</button><button type="button" data-theme-action="export">导出当前主题 CSS</button>',{iconName:'folder'})}</div></div>${fontSettings()}<div class="theme-grid">${themes.map(theme=>`<article class="theme-card ${preferences.selected===theme.id?'is-selected':''}"><button class="theme-choice" data-theme-id="${esc(theme.id)}" aria-pressed="${preferences.selected===theme.id}" ${busy?'disabled':''}><span class="theme-preview ${theme.id==='wikipedia'?'theme-preview-wiki':''}" ${swatches(theme)} aria-hidden="true"><i class="theme-preview-rail"></i><i class="theme-preview-panel"><b></b><b></b><b></b></i><i class="theme-preview-dot d1"></i><i class="theme-preview-dot d2"></i><i class="theme-preview-dot d3"></i><i class="theme-preview-dot d4"></i>${theme.id==='wikipedia'?'<i class="theme-preview-article"><strong>Materia</strong><em>材料 · 结构 · 性能</em><b></b><b></b><b></b></i>':''}</span><span class="theme-card-name"><strong>${esc(theme.name)}</strong><small>${preferences.selected===theme.id?'✓ 使用中':theme.tokens['--theme-mode']==='dark'?'深色':'浅色'}</small></span><span class="theme-card-description">${esc(theme.description)}</span></button>${theme.custom?`<button class="theme-delete" data-theme-remove="${esc(theme.id)}" aria-label="删除主题 ${esc(theme.name)}" title="删除这个自定义主题">×</button>`:''}</article>`).join('')}</div><p class="theme-format-note">CSS 模板支持配色、字体和圆角。导入内容只应用这些变量，不支持改变布局的普通选择器或外部资源。同名自定义主题再次导入会更新；最多保存 20 套。</p><div class="modal-footer"><button class="text-button" data-theme-action="reset">恢复默认主题</button><button class="primary" data-action="close-modal">完成</button></div>`,'themes');
-    requestAnimationFrame(()=>{const grid=document.querySelector('.theme-grid'),card=grid?.querySelector('.theme-card.is-selected');if(!grid||!card)return;const g=grid.getBoundingClientRect(),r=card.getBoundingClientRect();if(r.bottom>g.bottom-6)grid.scrollTop+=r.bottom-g.bottom+6;else if(r.top<g.top+6)grid.scrollTop-=g.top+6-r.top;});
-  }
-  async function save(next){if(busy)return false;busy=true;try{const clean=cleanThemePreferences(next);await config.persist(clean);preferences=clean;apply();return true;}finally{busy=false;}}
-  async function importFiles(files){if(!files.length)return;const rows=[];for(const file of files){if(!/\.css$/i.test(file.name))throw new Error('请选择 .css 主题文件。');if(file.size>32768)throw new Error(`${file.name} 超过 32 KB。`);const text=await file.text(),parsed=parseThemeCSS(text,file.name);for(const[key,value]of Object.entries(parsed.tokens)){const property=key==='--theme-mode'?'color-scheme':key==='--radius'?'border-radius':['--sans','--serif'].includes(key)?'font-family':'color';if(!CSS.supports(property,value))throw new Error(`${file.name}：${key} 的 CSS 值无法识别。`);}rows.push({name:file.name,text});}const next=importThemeFiles(preferences,rows,()=>`custom-${crypto.randomUUID()}`);if(await save(next)){open();config.toast(`已导入并应用主题「${resolveTheme(preferences).name}」`);}}
-  document.querySelector('#theme-input').addEventListener('change',async event=>{const files=[...event.target.files];event.target.value='';try{await importFiles(files);}catch(error){config.toast(error.message,true);}});
-  document.addEventListener('input',event=>{if(event.target.matches('[data-theme-font-scale]')&&!busy)applyFontScale(Number(event.target.value));});
-  document.addEventListener('change',async event=>{
-    if(event.target.matches('[data-theme-font-scale]')){
-      if(busy){applyFontScale(preferences.fontScale);return;}
-      const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
-      try{if(await save({...preferences,fontScale:Number(event.target.value)})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='字号已保存';}}
-      catch(error){applyFontScale(preferences.fontScale);config.toast(`字号未更改：${error.message}`,true);}
-      finally{controls.forEach(control=>control.disabled=false);}return;
-    }
-    const role=event.target.dataset.themeFont;if(!['body','heading'].includes(role))return;
-    if(busy){event.target.value=preferences.fonts?.[role]||'theme';return;}
-    const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
-    try{if(await save({...preferences,fonts:{body:preferences.fonts?.body||'theme',heading:preferences.fonts?.heading||'theme',[role]:event.target.value}})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='字体已保存';}}
-    catch(error){event.target.value=preferences.fonts?.[role]||'theme';config.toast(`字体未更改：${error.message}`,true);}
-    finally{controls.forEach(control=>control.disabled=false);}
-  });
-  document.addEventListener('click',async event=>{const button=event.target.closest('[data-theme-id],[data-theme-action],[data-theme-remove]');if(!button||busy)return;try{
-    if(button.dataset.themeId){if(await save({...preferences,selected:button.dataset.themeId}))open();}
-    if(button.dataset.themeRemove){if(await save(removeTheme(preferences,button.dataset.themeRemove)))open();}
-    const action=button.dataset.themeAction;
-    if(action==='import')document.querySelector('#theme-input').click();
-    if(action==='template')await config.saveText(themeCSS('我的学术主题',THEME_TOKENS),'materia-theme-template.css','css');
-    if(action==='export'){const theme=resolveTheme(preferences);await config.saveText(themeCSS(theme.name,theme.tokens),`materia-theme-${theme.id}.css`,'css');}
-    if(action==='reset'){if(await save({...preferences,selected:'paper'})){open();config.toast('已恢复默认主题。');}}
-    if(action==='reset-fonts'){if(await save({...preferences,fonts:{body:'theme',heading:'theme'}})){open();config.toast('字体已恢复跟随主题。');}}
-    if(action==='reset-font-scale'){if(await save({...preferences,fontScale:100})){open();config.toast('字号已恢复为 100%。');}}
-  }catch(error){config.toast(`主题未更改：${error.message}`,true);}});
-  return{load,open,importFiles,getPreferences:()=>cleanThemePreferences(preferences)};
+  const role=event.target.dataset.themeFont;if(!['body','heading','mono','numeric'].includes(role))return;if(busy||pending){event.target.value=preferences.fonts?.[role]||'theme';return;}
+  const controls=[...document.querySelectorAll('[data-theme-font],[data-theme-font-scale]')];controls.forEach(control=>control.disabled=true);
+  try{if(await save({...preferences,fonts:{...preferences.fonts,[role]:event.target.value}})){const status=document.querySelector('#theme-font-status');if(status)status.textContent='个人字体覆盖已保存';}}
+  catch(error){event.target.value=preferences.fonts?.[role]||'theme';config.toast(`字体未更改：${error.message}`,true);}finally{controls.forEach(control=>control.disabled=false);}
+ });
+ document.addEventListener('click',async event=>{const button=event.target.closest('[data-theme-id],[data-theme-action],[data-theme-remove]');if(!button||button.disabled||busy)return;try{
+  if(button.dataset.themeId){cancelPreview();if(await save({...preferences,selected:button.dataset.themeId}))open();}
+  if(button.dataset.themeRemove){if(await save(removeTheme(preferences,button.dataset.themeRemove)))open();}
+  const action=button.dataset.themeAction;
+  if(action==='import')document.querySelector('#theme-input').click();
+  if(action==='template')await config.saveText(themePackage(resolveTheme({selected:'ocean'})),'materia-theme-template.mtheme.json','json');
+  if(action==='template-css')await config.saveText(themeCSS('我的学术主题',THEME_TOKENS),'materia-theme-template.css','css');
+  if(action==='export'){const theme=resolveTheme(current());await config.saveText(themePackage(theme),`materia-theme-${theme.id}.mtheme.json`,'json');}
+  if(action==='export-css'){const theme=resolveTheme(current());await config.saveText(themeCSS(theme.name,theme.tokens),`materia-theme-${theme.id}.css`,'css');}
+  if(action==='reset'){cancelPreview();if(await save({...preferences,selected:'paper'})){open();config.toast('已恢复默认主题。');}}
+  if(action==='reset-fonts'){if(await save({...preferences,fonts:{body:'theme',heading:'theme',mono:'theme',numeric:'theme'}})){open();document.querySelector('.theme-fonts').open=true;config.toast('字体已恢复跟随主题。');}}
+  if(action==='reset-font-scale'){if(await save({...preferences,fontScale:100})){open();document.querySelector('.theme-fonts').open=true;config.toast('字号已恢复为 100%。');}}
+  if(action==='cancel-preview'){cancelPreview();open();}
+  if(action==='apply-import'&&pending){if(await save(pending)){open();config.toast('主题已应用并保存在本地文献库。');}}
+ }catch(error){cancelPreview();open();config.toast(`主题未更改：${error.message}`,true);}});
+ return{load,open,importFiles,getPreferences:()=>cleanThemePreferences(preferences),isBusy:()=>busy,ready:runtime.ready};
 }

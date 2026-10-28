@@ -19,7 +19,8 @@
     "verify:elastic": "node scripts/verify-elastic.cjs",
     "verify:global-elastic": "node scripts/verify-global-elastic.cjs",
     "build:force-vendor": "node scripts/build-force-vendor.mjs",
-    "verify:release-ui": "node scripts/verify-release-ui.cjs"
+    "verify:release-ui": "node scripts/verify-release-ui.cjs",
+    "verify:themes": "node scripts/verify-themes.cjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",

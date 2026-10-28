@@ -1,0 +1,63 @@
+{
+  "format": "materia-theme",
+  "schemaVersion": 2,
+  "name": "深海蓝",
+  "description": "技术工作台 · 无衬线标题 · 方笔图标",
+  "tokens": {
+    "--paper": "#edf2f6",
+    "--surface": "#fbfdff",
+    "--canvas": "#f4f8fc",
+    "--panel": "#e8f0f7",
+    "--sidebar": "#e7eef5",
+    "--ink": "#233f55",
+    "--muted": "#667e91",
+    "--line": "#d3e0eb",
+    "--teal": "#285f8a",
+    "--teal-light": "#deebf5",
+    "--on-accent": "#ffffff",
+    "--warning": "#9b7642",
+    "--warning-soft": "#f5efdf",
+    "--danger": "#a15d54",
+    "--danger-soft": "#f7ece8",
+    "--shadow": "#16374f1c",
+    "--serif": "'Segoe UI Semibold', 'Microsoft YaHei', sans-serif",
+    "--sans": "Bahnschrift, DengXian, 'Microsoft YaHei', sans-serif",
+    "--radius": "3px",
+    "--theme-mode": "light",
+    "--mono": "Consolas, 'Microsoft YaHei', monospace",
+    "--numeric": "Consolas, 'Microsoft YaHei', monospace",
+    "--font-size": "12px",
+    "--font-weight": "400",
+    "--line-height": "1.7",
+    "--heading-weight": "600",
+    "--heading-line-height": "1.5",
+    "--heading-scale": ".96"
+  },
+  "ui": {
+    "style": "technical",
+    "density": 0.9,
+    "radius": 3,
+    "buttonRadius": 3,
+    "cardRadius": 3,
+    "menuRadius": 3,
+    "borderWidth": 1,
+    "sidebarWidth": 216,
+    "controlHeight": 32,
+    "cardPadding": 12,
+    "menuPadding": 6,
+    "cardGap": 7,
+    "buttonStyle": "outlined",
+    "cardStyle": "outlined",
+    "sidebarStyle": "ruled",
+    "shadow": "none"
+  },
+  "icons": {
+    "style": "technical",
+    "strokeWidth": 1.6,
+    "size": 18,
+    "overrides": {}
+  },
+  "assets": {
+    "fonts": []
+  }
+}

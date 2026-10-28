@@ -1,3 +1,4 @@
+import {cleanIconShapes,ICON_DEFAULTS} from './theme-model.js';
 const icons = {
   plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
   orbit: '<circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-35 12 12)"/><path d="M9 3a10 10 0 0 1 8 17"/>',
@@ -39,6 +40,24 @@ Object.assign(icons,{
  'chevron-left':'<path d="m15 5-7 7 7 7"/>',
  'chevron-right':'<path d="m9 5 7 7-7 7"/>'
 });
-export const icon = name => `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name] || icons.files}</svg>`;
 
+export const ICON_NAMES=Object.keys(icons);
+let current={...ICON_DEFAULTS};
+const variants={
+ rounded:{assistant:'<path d="M7 4h10a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4H9l-6 3V8a4 4 0 0 1 4-4Z"/><path d="m12 7 1.2 3.3L16.5 12l-3.3 1.2L12 16.5l-1.2-3.3L7.5 12l3.3-1.7Z"/>',folder:'<path d="M3 8a3 3 0 0 1 3-3h3l3 3h6a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3Z"/>',library:'<rect x="3" y="4" width="6" height="16" rx="2"/><rect x="12" y="4" width="6" height="16" rx="2"/><path d="m20 5 2 14"/>'},
+ technical:{assistant:'<rect x="6" y="6" width="12" height="12"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4M18 9h4m-4 6h4M10 12h4m-2-2v4"/>',folder:'<path d="M3 5h6l3 3h9v12H3ZM3 11h18"/>',settings:'<path d="M3 6h18M3 12h18M3 18h18"/><rect x="7" y="4" width="4" height="4"/><rect x="14" y="10" width="4" height="4"/><rect x="5" y="16" width="4" height="4"/>'},
+ solid:{assistant:'<path fill="currentColor" stroke="none" d="M5 3h14a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H9l-7 3V6a3 3 0 0 1 3-3Zm7 3-1.5 4.5L6 12l4.5 1.5L12 18l1.5-4.5L18 12l-4.5-1.5Z" fill-rule="evenodd"/>',folder:'<path fill="currentColor" stroke="none" d="M2 4h8l3 3h9v14H2Z"/>',star:'<path fill="currentColor" stroke="none" d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z"/>',library:'<path fill="currentColor" stroke="none" d="M2 3h5v18H2ZM9 3h5v18H9Zm7 1 4-1 4 17-4 1Z"/>'}
+};
+function markup(shapes){return shapes.map(shape=>'<'+shape.tag+' '+Object.entries(shape.attrs).map(([key,value])=>key+'="'+String(value).replaceAll('"','&quot;')+'"').join(' ')+'/>').join('');}
+export function icon(name,settings=current){
+ const key=Object.hasOwn(icons,name)?name:'files',style=['outline','rounded','technical','duotone','solid'].includes(settings?.style)?settings.style:'outline';let body;
+ if(settings?.overrides?.[key]){try{body=markup(cleanIconShapes(settings.overrides[key]));}catch{}}
+ body ||= variants[style]?.[key]||icons[key];
+ const wash=style==='duotone'?'<rect x="1.5" y="1.5" width="21" height="21" rx="4" fill="currentColor" fill-opacity=".13" stroke="none"/>':'';
+ return '<svg class="ui-icon" data-icon-name="'+key+'"'+(arguments.length>1?' data-icon-preview="true"':'')+' data-icon-style="'+style+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+wash+body+'</svg>';
+}
+export function setIconTheme(settings){
+ current={...ICON_DEFAULTS,...settings};
+ if(typeof document!=='undefined')for(const node of document.querySelectorAll('svg.ui-icon[data-icon-name]:not([data-icon-preview])'))node.outerHTML=icon(node.dataset.iconName);
+}
 export function hydrateIcons(root=document){root.querySelectorAll('[data-icon]').forEach(node=>{node.innerHTML=icon(node.dataset.icon);});}

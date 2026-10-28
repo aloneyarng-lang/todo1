@@ -79,7 +79,7 @@ test('version 2 Markdown keeps multiple materials, overlapping sample IDs, notes
   assert.equal(parsed[1].materials[0].measurements.length,0);assert.equal(parsed[0].paperNotes[0].body,'两个材料分别比较。');
   const plan=await planBatch([],parseMetadata(md),[paper,{...paper,id:'other',filename:'other.pdf'}]);assert.equal(plan.updated,2);assert.equal(plan.updates[0].materials.length,2);assert.equal(plan.notes.length,1);
   assert.deepEqual(parseMarkdown(markdownTemplate(['multi.pdf']))[0].materials,undefined);
-  assert.equal(await readFile(new URL('../metadata-template.md',import.meta.url),'utf8'),markdownTemplate());
+  assert.equal((await readFile(new URL('../metadata-template.md',import.meta.url),'utf8')).replace(/\r\n/g,'\n'),markdownTemplate());
   assert.deepEqual(matchRecords(parseMarkdown(markdownTemplate(['multi.pdf'])),[paper]).updates[0].materials,materials);
   assert.throws(()=>parseMarkdown(md.replace('名称: 合金 A','名称: ')),/名称/);
   assert.throws(()=>parseMarkdown(md.replace('alloy-b','alloy-a')),/ID/);

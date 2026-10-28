@@ -33,8 +33,8 @@ export function fitGraphViewport(nodes,width=1000,height=620){
   return{scale,x:width/2-(left+right)/2*scale,y:height/2-(top+bottom)/2*scale};
 }
 export function placeNodeLabels(nodes,options={}) {
-  const {scale=1,viewportScale=1,panX=0,panY=0,activeId='',relatedIds=new Set(),showLabels=true,threshold=1.3,measureText=widthOf,viewHeight=620,previous=new Map()}=options;
-  const boxes=[{x:0,y:viewHeight-35,width:380,height:35},{x:800,y:viewHeight-45,width:200,height:45}],placed=new Map(),fontFor=node=>(node.id===activeId?11:10.5*Math.min(1.2,Math.pow(scale,.25)))/(scale*Math.max(.1,viewportScale));
+  const {scale=1,viewportScale=1,panX=0,panY=0,activeId='',relatedIds=new Set(),showLabels=true,threshold=1.3,measureText=widthOf,viewHeight=620,fontScale=1,previous=new Map()}=options;
+  const boxes=[{x:0,y:viewHeight-35,width:380,height:35},{x:800,y:viewHeight-45,width:200,height:45}],placed=new Map(),fontFor=node=>(node.id===activeId?11:10.5*Math.min(1.2,Math.pow(scale,.25)))*fontScale/(scale*Math.max(.1,viewportScale));
   const candidates=nodes.filter(node=>node.id===activeId || node.type==='relation'&&scale>=.72 || showLabels&&node.type==='paper'&&scale>=threshold*.65).sort((a,b)=>Number(b.id===activeId)-Number(a.id===activeId)||Number(relatedIds.has(b.id))-Number(relatedIds.has(a.id))||Number(b.type==='relation')-Number(a.type==='relation')||(b.members?.length||0)-(a.members?.length||0));
   for(const node of candidates){
     const active=node.id===activeId,font=fontFor(node),raw=node.type==='relation'?node.label:node.paper.title;
