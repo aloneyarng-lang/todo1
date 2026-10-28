@@ -18,6 +18,8 @@ credentials*.json
 secrets*.json
 ai-agent.json
 ai-chats*.json
+research-canvases.json
+research-canvases.previous.json
 library.json
 library.previous.json
 preferences.json
