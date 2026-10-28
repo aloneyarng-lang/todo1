@@ -1,3 +1,4 @@
+import { paperMaterials, paperMeasurements } from './materials.js';
 import { parseMetadata, planBatch } from './import-plan.js';
 import { markdownTemplate } from './markdown.js';
 
@@ -15,7 +16,7 @@ export function createBatchImporter(config) {
         <section class="batch-lane"><div class="batch-step"><b>02</b><h3>添加文献信息</h3></div><button type="button" class="upload-zone metadata-upload" data-batch-action="md"><span>MD</span><strong>选择 Markdown 元数据文件</strong><small>一份 MD 可包含多篇文献，也可多选 MD</small></button><button type="button" class="text-button" data-batch-action="template">按当前 PDF 文件名下载 MD 模板 ↗</button><div id="batch-metadata-files" class="batch-file-list"></div></section></div>
         <details class="batch-paste"><summary>或直接粘贴 Markdown / 兼容旧版 JSON</summary><textarea id="batch-metadata-text" spellcheck="false" placeholder="粘贴包含「## 文献」区块的 Markdown…"></textarea></details>
         <div class="batch-common"><label class="form-field">为本批文献追加标签<input id="batch-tags" placeholder="选填，用逗号分隔；保留每篇 MD 的独立标签"></label><label class="form-field">归入收藏夹<select id="batch-collection">${config.folderOptions()}</select></label></div>
-        <div class="batch-format-note"><strong>性能参数分别保存：</strong>参数名称 / 数值 / 单位 / 样品 / 测试条件 / 来源。标签追加、笔记去重追加；MD 中非空性能表替换该篇性能记录，空表保留已有数据。可先导入 PDF，稍后补充 MD。</div>
+        <div class="batch-format-note"><strong>文献 → 材料 → 性能参数：</strong>每篇可录入多个材料，各自保存名称、成分与参数。标签追加、笔记去重追加；非空材料区块替换该篇完整材料列表，空材料模板保留已有数据。兼容版本 1 的性能表，可稍后补充 MD。</div>
         <p id="batch-progress" class="batch-progress" aria-live="polite"></p><p id="batch-error" class="form-error" hidden></p><div id="batch-preview"></div>
         <div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button type="submit" class="primary" id="batch-submit">预览匹配与去重</button></div>
       </form>`, 'import');refreshFiles();
@@ -43,7 +44,7 @@ export function createBatchImporter(config) {
     refreshFiles();
   }
   function preview(result) {
-    $('#batch-preview').innerHTML=`<div class="batch-summary"><span><b>${result.added}</b> 新增</span><span><b>${result.updated}</b> 更新</span><span><b>${result.duplicates}</b> 重复文件</span><span><b>${result.unmatched.length}</b> 元数据未匹配</span></div><div class="batch-preview-scroll"><table><thead><tr><th>PDF / 匹配状态</th><th>标题（可修改）</th><th>标签 / 性能记录</th></tr></thead><tbody>${result.rows.map(row=>`<tr><td><strong>${esc(row.filename)}</strong><small>${esc(row.status)}</small></td><td><input data-batch-title="${esc(row.paper.id)}" value="${esc(row.paper.title)}" maxlength="1000" ${result.updates.some(p=>p.id===row.paper.id)?'':'disabled'}></td><td><span>${esc(row.paper.tags.join(' · ') || '标签待补充')}</span><small>${row.paper.measurements?.length || 0} 条性能参数</small></td></tr>`).join('')}</tbody></table></div>${result.unmatched.length?`<p class="batch-unmatched">未匹配到 PDF：${esc(result.unmatched.join('；'))}。这些元数据将跳过。</p>`:''}`;
+    $('#batch-preview').innerHTML=`<div class="batch-summary"><span><b>${result.added}</b> 新增</span><span><b>${result.updated}</b> 更新</span><span><b>${result.duplicates}</b> 重复文件</span><span><b>${result.unmatched.length}</b> 元数据未匹配</span></div><div class="batch-preview-scroll"><table><thead><tr><th>PDF / 匹配状态</th><th>标题（可修改）</th><th>标签 / 性能记录</th></tr></thead><tbody>${result.rows.map(row=>`<tr><td><strong>${esc(row.filename)}</strong><small>${esc(row.status)}</small></td><td><input data-batch-title="${esc(row.paper.id)}" value="${esc(row.paper.title)}" maxlength="1000" ${result.updates.some(p=>p.id===row.paper.id)?'':'disabled'}></td><td><span>${esc(row.paper.tags.join(' · ') || '标签待补充')}</span><small>${paperMaterials(row.paper).length} 个材料 · ${paperMeasurements(row.paper).length} 条性能参数</small></td></tr>`).join('')}</tbody></table></div>${result.unmatched.length?`<p class="batch-unmatched">未匹配到 PDF：${esc(result.unmatched.join('；'))}。这些元数据将跳过。</p>`:''}`;
     $('#batch-submit').textContent=result.updates.length?`确认导入（${result.added} 新增 / ${result.updated} 更新）`:'没有待导入变更';
   }
   async function submit() {

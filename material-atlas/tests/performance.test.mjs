@@ -61,7 +61,7 @@ test('empty template does not erase existing metadata, invalid combined values f
 test('batch plan deduplicates files, matches case-insensitive filenames and supports metadata-only updates',async()=>{
   const file=name=>Object.assign(new Blob(['%PDF-1.4\n']),{name,lastModified:1});
   const planned=await planBatch([file('A.PDF'),file('b.pdf'),file('copy.pdf')],record,[],{fingerprint:async f=>f.name==='b.pdf'?'hash-b':'hash-a'});
-  assert.equal(planned.added,2);assert.equal(planned.duplicates,1);assert.equal(planned.updates[0].measurements[0].value,182.5);assert.equal(planned.notes.length,2);
+  assert.equal(planned.added,2);assert.equal(planned.duplicates,1);assert.equal(planned.updates[0].materials[0].measurements[0].value,182.5);assert.equal(planned.notes.length,2);
   const existing=planned.updates.map(p=>({...p,file:null}));
   const only=await planBatch([],record,existing);assert.equal(only.added,0);assert.equal(only.updated,2);
   assert.equal(parseMetadata('\uFEFF'+JSON.stringify({papers:record})).length,2);
@@ -89,7 +89,7 @@ test('parameter X/Y pairs by sample and skips ambiguous data without inventing a
 test('performance values survive disk reopen and complete backup; CSV keeps separate columns',async()=>{
   const parent=path.resolve('.local/tests');await mkdir(parent,{recursive:true});const lib=await new LocalLibrary(await mkdtemp(path.join(parent,'performance-'))).init();
   const input={...base('p1','a.pdf'),...record[0],id:'p1',fileBytes:Buffer.from('%PDF-1.4\nperformance test\n%%EOF')};delete input.file;
-  await lib.putPapers([input]);const reopened=await new LocalLibrary(lib.root).init();assert.equal(reopened.getPapers()[0].measurements[0].value,182.5);
-  const backup={format:'materia-backup',version:1,collections:[],papers:[{...input,fileBase64:Buffer.from('%PDF-1.4\n').toString('base64')}]};const restored=readBackup(backup);assert.equal(restored.papers[0].measurements[1].unit,'S/cm');
+  await lib.putPapers([input]);const reopened=await new LocalLibrary(lib.root).init();assert.equal(reopened.getPapers()[0].materials[0].measurements[0].value,182.5);
+  const backup={format:'materia-backup',version:1,collections:[],papers:[{...input,fileBase64:Buffer.from('%PDF-1.4\n').toString('base64')}]};const restored=readBackup(backup);assert.equal(restored.papers[0].materials[0].measurements[1].unit,'S/cm');
   const csv=measurementsCSV(restored.papers);assert.match(csv,/"参数名称","数值","单位"/);assert.match(csv,/"比容量","182.5","mAh\/g"/);
 });

@@ -1,6 +1,6 @@
 import { normalizeNotes } from './note-model.js';
 import { normalizeAuthors, numericImpact, parseMetrics, mergeMetrics } from './catalog.js';
-import { normalizeMeasurements } from './parameters.js';
+import { normalizePaperMaterials, materializePaper } from './materials.js';
 import { takeRemoval, restoreRemoval } from './removal.js';
 import { planBulkEdit } from './bulk-edit.js';
 export const DB_NAME = 'materia-library-v1';
@@ -10,6 +10,8 @@ const native = globalThis.materiaDesktop;
 let richNoteSupport;
 async function assertRichNoteSupport(value){const notes=Object.values(value||{}).filter(Array.isArray).flat();if(native&&notes.some(note=>note.anchor||note.attachments?.length)){richNoteSupport ||= native.info();const info=await richNoteSupport;if(Number(info.readerNotesVersion)<1||!info.readerNotesVersion)throw new Error('请关闭并重新打开 Materia，再保存带标记或图片的笔记；当前桌面存储接口仍是旧版。');if(notes.some(note=>note.anchor&&(note.anchor.kind||note.anchor.label!==undefined))&&!info.readerAnnotationsVersion)throw new Error('请重新启动 Materia 以启用文字和箭头标注；当前标注仍保留在编辑区。');}}
 async function nativePapers(papers) {
+  papers = papers.map(normalizePaperMaterials);
+  if (papers.length && !(Number((await native.info()).materialsVersion) >= 1)) throw new Error('请关闭并重新打开 Materia，以启用按材料保存性能参数；当前编辑内容仍保留。');
   const output = [];
   for (const paper of papers) {
     const { file, ...metadata } = paper;
@@ -46,9 +48,9 @@ async function transaction(store, mode, run) {
   });
 }
 
-export const getPapers = () => native ? native.getPapers() : transaction('papers', 'readonly', store => store.getAll());
-export const putPaper = async paper => native ? native.putPapers(await nativePapers([paper])) : transaction('papers', 'readwrite', store => store.put(paper));
-export const putPapers = async papers => native ? native.putPapers(await nativePapers(papers)) : transaction('papers', 'readwrite', store => { for (const paper of papers) store.put(paper); });
+export const getPapers = async () => (await (native ? native.getPapers() : transaction('papers', 'readonly', store => store.getAll()))).map(materializePaper);
+export const putPaper = async paper => native ? native.putPapers(await nativePapers([paper])) : transaction('papers', 'readwrite', store => store.put(normalizePaperMaterials(paper)));
+export const putPapers = async papers => { const clean = papers.map(normalizePaperMaterials); return native ? native.putPapers(await nativePapers(clean)) : transaction('papers', 'readwrite', store => { for (const paper of clean) store.put(paper); }); };
 export const deletePaper = id => native ? native.deletePaper(id) : transaction('papers', 'readwrite', store => store.delete(id));
 export const getSetting = async key => native ? native.getSetting(key) : (await transaction('settings', 'readonly', store => store.get(key)))?.value;
 export const setSetting = async (key, value) => { if(key==='notes'){value=normalizeNotes(value);await assertRichNoteSupport(value);}if(key==='readerDrafts')await assertRichNoteSupport({drafts:(value||[]).map(row=>row.note)});return native ? native.setSetting(key, value) : transaction('settings', 'readwrite', store => store.put({ key, value })); };
@@ -127,15 +129,15 @@ export function blobToBase64(blob) {
 export async function createBackup(papers, collections, notes = {}, journalMetrics = []) {
   const records = [];
   for (const paper of papers) {
-    const { file, ...metadata } = paper;
+    const { file, ...metadata } = normalizePaperMaterials(paper);
     const blob = file?.desktop ? new Blob([await native.readPdf(paper.id)], { type: 'application/pdf' }) : file;
     records.push({ ...metadata, fileBase64: blob ? await blobToBase64(blob) : null });
   }
-  return { format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics };
+  return { format: BACKUP_FORMAT, version: 2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics };
 }
 
 export function readBackup(value) {
-  if (!value || value.format !== BACKUP_FORMAT || value.version !== 1 || !Array.isArray(value.papers) || !Array.isArray(value.collections)) throw new Error('这不是受支持的 Materia 完整备份。');
+  if (!value || value.format !== BACKUP_FORMAT || ![1,2].includes(value.version) || !Array.isArray(value.papers) || !Array.isArray(value.collections)) throw new Error('这不是受支持的 Materia 完整备份。');
   if (value.papers.length > 10000 || value.collections.length > 500) throw new Error('备份中的记录过多，无法导入。');
   const collectionIds = new Set();
   const collections = value.collections.map(item => {
@@ -159,7 +161,7 @@ export function readBackup(value) {
       id: item.id.slice(0, 120), title: item.title.slice(0, 1000),
       authors: typeof item.authors === 'string' ? item.authors.slice(0, 1000) : '',
       authorDetails: normalizeAuthors(item.authorDetails || []),
-      measurements: normalizeMeasurements(item.measurements || []),
+      materials: normalizePaperMaterials(item).materials,
       doi: String(item.doi || '').slice(0, 1000),
       impactFactor: numericImpact(item.impactFactor), impactYear: /^\d{4}$/.test(String(item.impactYear || '')) ? String(item.impactYear) : '',
       journal: typeof item.journal === 'string' ? item.journal.slice(0, 300) : '',

@@ -43,7 +43,7 @@ export async function planBatch(files, records, existing, { collection = '', tag
     onProgress(++index, files.length, file.name);
     const digest = await hash(file), previous = byHash.get(digest);
     if (previous && targets.has(previous.id)) { duplicates++; rows.push({ filename:file.name, status:'批内重复', paper:previous }); continue; }
-    const base = previous ? { ...previous, filename: file.name } : { id:`paper-${crypto.randomUUID()}`, title:file.name.replace(/\.pdf$/i,'').replaceAll('_',' '), authors:'', authorDetails:[], journal:'', year:'', doi:'', impactFactor:null, impactYear:'', tags:[], measurements:[], notes:'', collection, favorite:false, addedAt:Date.now()+index, file, size:file.size, filename:file.name, fingerprint:digest };
+    const base = previous ? { ...previous, filename: file.name } : { id:`paper-${crypto.randomUUID()}`, title:file.name.replace(/\.pdf$/i,'').replaceAll('_',' '), authors:'', authorDetails:[], journal:'', year:'', doi:'', impactFactor:null, impactYear:'', tags:[], materials:[], notes:'', collection, favorite:false, addedAt:Date.now()+index, file, size:file.size, filename:file.name, fingerprint:digest };
     let choices = records.map((r,i)=>({r,i})).filter(({r})=>r.filename && filenameKey(r.filename) === filenameKey(file.name));
     if (!choices.length) choices = records.map((r,i)=>({r,i})).filter(({r})=>r.id === base.id || r.title && r.title.toLocaleLowerCase() === base.title.toLocaleLowerCase());
     if (choices.length > 1) throw new Error(`「${file.name}」匹配多个 Markdown 文献区块，请让文件名唯一。`);

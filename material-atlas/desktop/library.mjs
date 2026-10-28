@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { normalizeAuthors, numericImpact, mergeMetrics, parseMetrics } from '../dist/catalog.js';
 import { renameTitleLinks } from '../dist/note-links.js';
-import { normalizeMeasurements } from '../dist/parameters.js';
+import { normalizePaperMaterials, materializePaper } from '../dist/materials.js';
 import { isOldExample, removeOldExampleNotes } from '../dist/example-migration.js';
 import { takeRemoval, restoreRemoval } from '../dist/removal.js';
 import { planBulkEdit } from '../dist/bulk-edit.js';
@@ -33,7 +33,7 @@ export class LocalLibrary {
     const file = path.join(this.root, 'library.json');
     try {
       const parsed = JSON.parse(await readFile(file, 'utf8'));
-      if (parsed.format !== 'materia-library' || parsed.version !== 1 || !Array.isArray(parsed.papers)) throw new Error('文献库格式不受支持。');
+      if (parsed.format !== 'materia-library' || ![1,2].includes(parsed.version) || !Array.isArray(parsed.papers)) throw new Error('文献库格式不受支持。');
       for (const paper of parsed.papers) if (paper.pdfPath) resolveInside(this.root, paper.pdfPath);
       this.data = parsed; this.data.settings ||= {};
       this.data.settings.mode = 'own';
@@ -53,6 +53,7 @@ export class LocalLibrary {
     return this;
   }
   async save(data) {
+    if (data.papers.some(paper => paper.materials !== undefined)) data.version = 2;
     const target = path.join(this.root, 'library.json');
     const temp = path.join(this.root, `.library-${randomUUID()}.tmp`);
     await writeFile(temp, JSON.stringify(data, null, 2), { encoding: 'utf8', flag: 'wx' });
@@ -64,7 +65,7 @@ export class LocalLibrary {
     const operation = this.queue.then(async () => { const next = structuredClone(this.data); const result = await fn(next); await this.save(next); return result; });
     this.queue = operation.catch(() => {}); return operation;
   }
-  getPapers() { return this.data.papers.map(p => ({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
+  getPapers() { return this.data.papers.map(p => materializePaper({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
     if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts'].includes(key)) throw new Error('不支持的文献库设置。');
@@ -86,7 +87,7 @@ export class LocalLibrary {
       tags: cleanTags(input.tags), notes: String(input.notes || '').slice(0, 20000), collection: String(input.collection || '').slice(0, 120), favorite: Boolean(input.favorite), addedAt: Number(input.addedAt) || Date.now(),
       filename: path.basename(String(input.filename || existing?.filename || 'document.pdf')), size: existing?.size || 0, pdfPath: existing?.pdfPath || '', fingerprint: existing?.fingerprint || '',
       authorDetails: normalizeAuthors(input.authorDetails || existing?.authorDetails || []), doi: String(input.doi || '').slice(0, 1000), impactFactor: numericImpact(input.impactFactor), impactYear: /^\d{4}$/.test(String(input.impactYear)) ? String(input.impactYear) : '',
-      measurements: normalizeMeasurements(input.measurements ?? existing?.measurements ?? []),
+      materials: normalizePaperMaterials(input.materials !== undefined || input.measurements !== undefined ? input : existing || {}).materials,
     };
     if (input.fileBytes) {
       const bytes = Buffer.from(input.fileBytes);
@@ -147,7 +148,7 @@ export class LocalLibrary {
       const existing = new Set(data.papers.map(paper => paper.id));
       for (const paper of batch.papers) if (!existing.has(paper.id)) {
         await access(resolveInside(this.root, paper.pdfPath));
-        Object.assign(paper, await this.preparePaper(paper, paper));
+        const prepared = await this.preparePaper(paper, paper); delete paper.measurements; Object.assign(paper, prepared);
       }
       return { count: restoreRemoval(data, batch).length };
     });
@@ -170,6 +171,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1 };
   }
 }

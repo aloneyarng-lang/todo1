@@ -78,7 +78,7 @@ test('desktop bulk edit atomically persists a new group and keeps PDF, notes and
   assert.equal(current.getPapers().find(row=>row.id==='a').collection,group.id);
   assert.equal(current.getPapers().find(row=>row.id==='c').collection,'');
   assert.equal(current.getSetting('notes')['paper:a'][0].body,'Preserved');
-  assert.equal(current.getPapers().find(row=>row.id==='a').measurements[0].value,100);
+  assert.equal(current.getPapers().find(row=>row.id==='a').materials[0].measurements[0].value,100);
   assert.deepEqual(Buffer.from(await current.readPdf('a')),bytes);
   const before=await readFile(path.join(lib.root,'library.json'),'utf8');
   await assert.rejects(current.bulkEdit(['a','missing'],{tagMode:'replace',tags:['Bad']}));

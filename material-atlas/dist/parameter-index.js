@@ -1,15 +1,16 @@
+import { paperMeasurements } from './materials.js';
 export const parameterNameKey = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase();
 export const parameterUnitKey = value => String(value || '').normalize('NFKC').trim();
 
 // Membership is based on the recorded name, independently of plot validity.
 export function hasParameter(paper, name, unit = '*') {
   const key = parameterNameKey(name);
-  return (paper.measurements || []).some(measurement => parameterNameKey(measurement.name) === key && (unit === '*' || parameterUnitKey(measurement.unit) === parameterUnitKey(unit)));
+  return paperMeasurements(paper).some(measurement => parameterNameKey(measurement.name) === key && (unit === '*' || parameterUnitKey(measurement.unit) === parameterUnitKey(unit)));
 }
 
 export function parameterInventory(papers) {
   const names = new Map();
-  for (const paper of papers) for (const measurement of paper.measurements || []) {
+  for (const paper of papers) for (const measurement of paperMeasurements(paper)) {
     const key = parameterNameKey(measurement.name); if (!key) continue;
     if (!names.has(key)) names.set(key, { key, name: String(measurement.name).trim(), papers: new Set(), records: 0, units: new Map() });
     const item = names.get(key), unit = parameterUnitKey(measurement.unit);
@@ -25,8 +26,8 @@ export function parameterResults(papers, name, unit = '*') {
 }
 
 export function parameterRecordPreview(paper,name,unit,esc){
-  const rows=(paper.measurements||[]).filter(row=>parameterNameKey(row.name)===parameterNameKey(name)&&(unit==='*'||parameterUnitKey(row.unit)===parameterUnitKey(unit)));
-  const record=row=>`<div class="parameter-result-record"><strong>${esc(row.qualifier||'')}${row.value==null||row.value===''?'数值未填':esc(row.value)} <span>${esc(row.unit||'单位未填')}</span>${row.uncertainty!=null&&row.uncertainty!==''?` <small>± ${esc(row.uncertainty)}</small>`:''}</strong><small>${esc([row.sample,row.conditions].filter(Boolean).join(' · ')||'样品与条件未填')}</small>${row.source?`<details><summary>来源</summary><p>${esc(row.source)}</p></details>`:''}</div>`;
+  const rows=paperMeasurements(paper).filter(row=>parameterNameKey(row.name)===parameterNameKey(name)&&(unit==='*'||parameterUnitKey(row.unit)===parameterUnitKey(unit)));
+  const record=row=>`<div class="parameter-result-record"><strong>${esc(row.qualifier||'')}${row.value==null||row.value===''?'数值未填':esc(row.value)} <span>${esc(row.unit||'单位未填')}</span>${row.uncertainty!=null&&row.uncertainty!==''?` <small>± ${esc(row.uncertainty)}</small>`:''}</strong><small>${esc([row.materialName,row.sample!==row.materialName?row.sample:'',row.conditions].filter(Boolean).join(' · ')||'样品与条件未填')}</small>${row.source?`<details><summary>来源</summary><p>${esc(row.source)}</p></details>`:''}</div>`;
   return `<div class="parameter-result-records">${rows.slice(0,3).map(record).join('')}${rows.length>3?`<details><summary>展开其余 ${rows.length-3} 条记录</summary>${rows.slice(3).map(record).join('')}</details>`:''}</div>`;
 }
 

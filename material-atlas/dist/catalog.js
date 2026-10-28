@@ -1,4 +1,4 @@
-import { normalizeMeasurements } from './parameters.js';
+import { paperMaterials, paperMeasurements, normalizePaperMaterials } from './materials.js';
 import { eligibleTags } from './tags.js';
 import { hasParameter } from './parameter-index.js';
 export const journalKey = value => String(value || '').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
@@ -29,7 +29,7 @@ export function filterCatalog(papers, state, notes = {}, metrics = []) {
     if (state.hiddenIds?.has(p.id) || f.excludeTags?.some(tag => p.tags.includes(tag))) return false;
     const authors = normalizeAuthors(p.authorDetails || []);
     const author = [p.authors || '', ...authors.map(a => a.name)].join(' '), institutions = authors.flatMap(a => a.affiliations).join(' ');
-    const content = state.searchScope === 'title' ? p.title : state.searchScope === 'tags' ? [...p.tags, p.journal].join(' ') : state.searchScope === 'notes' ? noteText(p) : [p.title, author, institutions, p.journal, p.doi, ...p.tags, noteText(p), ...(p.measurements || []).flatMap(m=>[m.name,m.value,m.unit,m.sample,m.conditions])].join(' ');
+    const content = state.searchScope === 'title' ? p.title : state.searchScope === 'tags' ? [...p.tags, p.journal].join(' ') : state.searchScope === 'notes' ? noteText(p) : [p.title, author, institutions, p.journal, p.doi, ...p.tags, ...paperMaterials(p).flatMap(m=>[m.name,m.composition,m.description]), noteText(p), ...(paperMeasurements(p)).flatMap(m=>[m.name,m.value,m.unit,m.sample,m.conditions])].join(' ');
     if (!tokens.every(token => token.startsWith('#') ? p.tags.some(tag => tag.toLocaleLowerCase().includes(token.slice(1))) : content.toLocaleLowerCase().includes(token))) return false;
     if (state.collection && p.collection !== state.collection || state.nav === 'favorites' && !p.favorite || state.tag && !p.tags.includes(state.tag) || state.year && p.year !== state.year) return false;
     if (f.tags?.length && !(f.tagMode === 'any' ? f.tags.some(t => p.tags.includes(t)) : f.tags.every(t => p.tags.includes(t)))) return false;
@@ -102,7 +102,11 @@ export function matchMetadata(text, papers) {
     if (authorDetails) { updated.authorDetails = authorDetails; updated.authors = authorDetails.map(a => a.name).join(', '); }
     if (row.tags !== undefined) { if (!Array.isArray(row.tags)) throw new Error('tags 必须是字符串数组。'); updated.tags = [...new Set(row.tags.map(t => String(t).trim()).filter(Boolean))].slice(0, 30); }
     if (row.impactFactor !== undefined) { updated.impactFactor = numericImpact(row.impactFactor); if (updated.impactFactor === null && row.impactFactor !== null && row.impactFactor !== '') throw new Error('影响因子格式不正确。'); }
-    if (row.measurements !== undefined) updated.measurements = normalizeMeasurements(row.measurements);
+    if (row.materials !== undefined && row.measurements !== undefined) throw new Error('请使用 materials 材料数组，不要同时提供文献级 measurements。');
+    if (row.materials !== undefined || row.measurements !== undefined) {
+      const incoming = row.materials !== undefined ? { materials: row.materials } : { measurements: row.measurements };
+      updated.materials = normalizePaperMaterials(incoming).materials; delete updated.measurements;
+    }
     updates.push(updated);
   }
   if (new Set(updates.map(p => p.id)).size !== updates.length) throw new Error('同一份元数据中多条记录匹配到同一篇文献，请先去重。');

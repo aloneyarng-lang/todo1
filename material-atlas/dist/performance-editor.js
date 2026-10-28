@@ -1,10 +1,40 @@
-import { normalizeMeasurements } from './parameters.js';
+import { paperMaterials, normalizeMaterials } from './materials.js';
 export function createPerformanceEditor(config) {
-  let paperId='',rows=[];const esc=config.escape;
-  function table(){const host=document.querySelector('#performance-editor-rows');if(!host)return;host.innerHTML=rows.map((m,i)=>`<tr>${['sample','name','value','unit','conditions','source','qualifier','uncertainty'].map(field=>`<td><input data-performance-row="${i}" data-performance-field="${field}" value="${esc(m[field]??'')}" ${['value','uncertainty'].includes(field)?'inputmode="decimal"':''} aria-label="第 ${i+1} 条 ${field}"></td>`).join('')}<td><button type="button" data-performance-remove="${i}" aria-label="移除性能记录 ${i+1}">×</button></td></tr>`).join('');}
-  function open(id){const p=config.getPapers().find(p=>p.id===id);if(!p)return;paperId=id;rows=structuredClone(p.measurements || []);config.showModal('管理性能参数',esc(p.title),`<form id="performance-editor-form"><p class="chart-footnote">参数名称与数值独立保存。数值只填数字，单位、测试条件和来源分别填写。</p><div class="performance-editor-scroll"><table class="performance-editor-table"><thead><tr>${['样品','参数名称','数值','单位','测试条件','来源','限定符','误差',''].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody id="performance-editor-rows"></tbody></table></div><button class="outline-button" type="button" data-performance-add>＋ 添加性能记录</button><p class="form-error" id="performance-error" hidden></p><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">保存性能参数</button></div></form>`,'performance-editor');table();}
-  document.addEventListener('input',event=>{if(event.target.dataset.performanceField)rows[Number(event.target.dataset.performanceRow)][event.target.dataset.performanceField]=event.target.value;});
-  document.addEventListener('click',event=>{const b=event.target.closest('button');if(!b)return;if(b.hasAttribute('data-performance-add')){rows.push({});table();}if(b.dataset.performanceRemove!==undefined){rows.splice(Number(b.dataset.performanceRemove),1);table();}});
-  document.addEventListener('submit',async event=>{if(event.target.id!=='performance-editor-form')return;event.preventDefault();const button=event.target.querySelector('[type=submit]');try{button.disabled=true;const measurements=normalizeMeasurements(rows.filter(r=>Object.values(r).some(v=>v!==''&&v!==null&&v!==undefined)));await config.save(paperId,measurements);config.close();config.toast('性能参数已保存。');}catch(error){const node=document.querySelector('#performance-error');node.textContent=error.message;node.hidden=false;}finally{button.disabled=false;}});
-  return {open};
+  let paperId='',materials=[],busy=false; const esc=config.escape;
+  const fields=[['sample','样品 / 批次'],['name','参数名称'],['value','数值'],['unit','单位'],['conditions','测试条件'],['source','来源'],['qualifier','限定符'],['uncertainty','误差']];
+  function render(){
+    const host=document.querySelector('#material-editor-list');if(!host)return;
+    host.innerHTML=materials.map((material,index)=>`<section class="material-editor-card" data-material-card="${index}">
+      <header><strong>材料 ${index+1}</strong><button type="button" class="text-button" data-material-remove="${index}">移除材料${material.measurements.length?`（含 ${material.measurements.length} 条参数）`:''}</button></header>
+      <div class="material-editor-fields"><label>材料名称<input data-material-index="${index}" data-material-field="name" value="${esc(material.name)}" maxlength="300" placeholder="例如：合金 A、复合材料 B" required></label><label>成分 / 配方<input data-material-index="${index}" data-material-field="composition" value="${esc(material.composition||'')}" maxlength="2000" placeholder="按原文填写，可留空"></label><label class="material-description">材料说明<textarea data-material-index="${index}" data-material-field="description" maxlength="6000" rows="2" placeholder="制备方法、结构等，可留空">${esc(material.description||'')}</textarea></label></div>
+      <div class="performance-editor-scroll"><table class="performance-editor-table"><thead><tr>${fields.map(([,label])=>`<th>${label}</th>`).join('')}<th></th></tr></thead><tbody>${material.measurements.map((m,row)=>`<tr>${fields.map(([field,label])=>`<td><input data-material-index="${index}" data-performance-row="${row}" data-performance-field="${field}" value="${esc(m[field]??'')}" ${['value','uncertainty'].includes(field)?'inputmode="decimal"':''} aria-label="材料 ${index+1} 第 ${row+1} 条 ${label}"></td>`).join('')}<td><button type="button" data-material-index="${index}" data-performance-remove="${row}" aria-label="移除材料 ${index+1} 的性能记录 ${row+1}">×</button></td></tr>`).join('')}</tbody></table>${material.measurements.length?'':'<p class="help-inline">这个材料尚未录入性能参数，可稍后补充。</p>'}</div>
+      <button class="outline-button" type="button" data-performance-add="${index}">＋ 添加性能记录</button></section>`).join('')||'<p class="help-inline">一篇文献可以有多个材料。先添加材料，再填写各自的性能参数。</p>';
+  }
+  function open(id){
+    const paper=config.getPapers().find(p=>p.id===id);if(!paper)return;
+    paperId=id;materials=structuredClone(paperMaterials(paper));busy=false;
+    config.showModal('管理材料与性能参数',esc(paper.title),`<form id="performance-editor-form"><fieldset id="material-editor-fields"><p class="chart-footnote">每个材料独立保存名称、成分与性能参数。不同材料的同名参数不会混在一起；数值、单位、条件和来源分列填写。修改在保存后生效，取消可保留原数据。</p><div id="material-editor-list"></div><button class="outline-button" type="button" data-material-add>＋ 添加材料</button><p class="form-error" id="performance-error" role="alert" hidden></p><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">保存材料与参数</button></div></fieldset></form>`,'performance-editor');render();
+  }
+  document.addEventListener('input',event=>{
+    const target=event.target,index=Number(target.dataset.materialIndex);if(busy||!materials[index])return;
+    if(target.dataset.materialField)materials[index][target.dataset.materialField]=target.value;
+    if(target.dataset.performanceField)materials[index].measurements[Number(target.dataset.performanceRow)][target.dataset.performanceField]=target.value;
+  });
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('button');if(!button||busy||!button.closest('#performance-editor-form'))return;
+    if(button.hasAttribute('data-material-add')){materials.push({id:`material-${crypto.randomUUID()}`,name:'',composition:'',description:'',measurements:[]});render();document.querySelector('[data-material-card]:last-child [data-material-field=name]')?.focus();}
+    if(button.dataset.materialRemove!==undefined){materials.splice(Number(button.dataset.materialRemove),1);render();}
+    if(button.dataset.performanceAdd!==undefined){materials[Number(button.dataset.performanceAdd)].measurements.push({id:`m-${crypto.randomUUID()}`});render();}
+    if(button.dataset.performanceRemove!==undefined){materials[Number(button.dataset.materialIndex)].measurements.splice(Number(button.dataset.performanceRemove),1);render();}
+  });
+  document.addEventListener('submit',async event=>{
+    if(event.target.id!=='performance-editor-form')return;event.preventDefault();if(busy)return;
+    const fieldset=event.target.querySelector('fieldset');busy=true;fieldset.disabled=true;
+    try{
+      const clean=normalizeMaterials(materials.map(material=>({...material,measurements:material.measurements.filter(row=>fields.some(([field])=>row[field]!==''&&row[field]!=null))})));
+      await config.save(paperId,clean);busy=false;config.close();config.toast('材料与性能参数已保存。');
+    }catch(error){const node=document.querySelector('#performance-error');if(node){node.textContent=error.message;node.hidden=false;}}
+    finally{busy=false;fieldset.disabled=false;}
+  });
+  return {open,isBusy:()=>busy};
 }

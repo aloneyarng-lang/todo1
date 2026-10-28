@@ -31,7 +31,7 @@ test('one bulk removal preserves PDFs and restores papers, measurements, notes a
   assert.equal(reopened.getSetting('lastRemoval').id, receipt.id);
   assert.equal((await reopened.restorePapers(receipt.id)).count, 2);
   assert.equal(reopened.getPapers().length, 3);
-  assert.deepEqual(reopened.getPapers().find(paper => paper.id === 'batch-a').measurements, originals[0].measurements);
+  assert.deepEqual(reopened.getPapers().find(paper => paper.id === 'batch-a').materials, originals[0].materials);
   assert.deepEqual(reopened.getPapers().find(paper => paper.id === 'batch-a').authorDetails, originals[0].authorDetails);
   assert.deepEqual(reopened.getSetting('notes'), notes);
   assert.deepEqual(new Set(reopened.getSetting('comparisonSelection')), new Set(papers.map(paper => paper.id)));
@@ -47,7 +47,7 @@ test('undo preserves a newly imported or edited paper with the same ID', async (
   await lib.setSetting('notes', { ...lib.getSetting('notes'), 'paper:batch-a': [{ id: 'new-note', body: 'Newest note', createdAt: 2, updatedAt: 2 }] });
   assert.equal((await lib.restorePapers(receipt.id)).count, 1);
   assert.equal(lib.getPapers().find(paper => paper.id === 'batch-a').title, 'Edited after removal');
-  assert.equal(lib.getPapers().find(paper => paper.id === 'batch-a').measurements[0].value, 99);
+  assert.equal(lib.getPapers().find(paper => paper.id === 'batch-a').materials[0].measurements[0].value, 99);
   assert.equal(lib.getSetting('notes')['paper:batch-a'][0].body, 'Newest note');
   assert.equal(lib.getSetting('notes')['paper:batch-b'][0].body, 'Reading B');
 });
