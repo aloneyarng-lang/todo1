@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {REIMU_PRESETS} from '../../dist/reimu-presets.js';
 import {parseThemePackage,themeCSS,parseThemeCSS} from '../../dist/theme-model.js';
-const root=fileURLToPath(new URL('../../',import.meta.url)),output=path.resolve(root,'../博丽灵梦主题包');
+const root=fileURLToPath(new URL('../../',import.meta.url)),output=fileURLToPath(new URL('./',import.meta.url));
 await mkdir(path.join(output,'字体许可'),{recursive:true});
 const specs=[
  {id:'reimu-han',family:'Reimu Han Sans',file:'SourceHanSansCN-VF.otf.woff2',format:'woff2',weight:'300 700',licenseFile:'SourceHanSans-LICENSE.txt',source:'Adobe Source Han Sans CN, unmodified. https://github.com/adobe-fonts/source-han-sans'},

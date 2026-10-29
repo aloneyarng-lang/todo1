@@ -99,8 +99,9 @@ export class StarMap {
       const core=el(geometry.tag,{...geometry.attrs,class:'node-core','data-shape':shape});
       if(shape==='symbol')core.append(symbol?.length?graphSymbolNode(symbol,r):el('circle',{r,fill:'var(--node-color)'}));
       item.core.replaceWith(core);item.core=core;
-      item.group.style.setProperty('--node-color',appearance.colorMode==='category'?node.color:node.type==='relation'?'var(--warning)':'var(--teal)');
-      item.ring.setAttribute('r',node.visualRadius+3);item.ring.setAttribute('stroke',appearance.colorMode==='category'?node.color:'var(--teal)');
+      const customColor=node.type==='relation'?appearance.relationColor:appearance.nodeColor;
+      item.group.style.setProperty('--node-color',appearance.colorMode==='category'?node.color:customColor&&customColor!=='auto'?customColor:node.type==='relation'?'var(--warning)':'var(--teal)');
+      item.ring.setAttribute('r',node.visualRadius+3);item.ring.setAttribute('stroke','var(--node-color)');
       item.pin.setAttribute('cx',node.visualRadius+4);item.pin.setAttribute('cy',-node.visualRadius-3);
     }
     this.labelWidths.clear();if(this.network){this.paint();this.highlightNode(this.activeId||'');}
@@ -170,8 +171,8 @@ export class StarMap {
       const result=await computeNaturalLayout(input,options,controller.signal);if(this.naturalTask!==task||this.network!==network)return false;
       this.naturalUndo=previous;this.naturalState();
       const destinations=new Map(result.points.map(p=>[p.id,p]));
-      const apply=t=>{const ease=1-Math.pow(1-t,3);for(const n of network.nodes){const a=previous.points[n.id],b=destinations.get(n.id);if(!a||!b)continue;n.x=a.x+(b.x-a.x)*ease;n.y=a.y+(b.y-a.y)*ease;n.pinned=b.pinned;n.vx=0;n.vy=0;n.fx=null;n.fy=null;}
-        for(const key of ['scale','x','y'])this[key]=previous.camera[key]+(result.camera[key]-previous.camera[key])*ease;this.viewport?.setAttribute('transform',`translate(${this.x} ${this.y}) scale(${this.scale})`);this.onZoom?.(Math.round(this.scale*100));this.paint();};
+      const apply=t=>{const ease=1-Math.pow(1-t,3);for(const n of network.nodes){const a=previous.points[n.id],b=destinations.get(n.id);if(!a||!b)continue;n.x=t===1?b.x:a.x+(b.x-a.x)*ease;n.y=t===1?b.y:a.y+(b.y-a.y)*ease;n.pinned=b.pinned;n.vx=0;n.vy=0;n.fx=null;n.fy=null;}
+        for(const key of ['scale','x','y'])this[key]=t===1?result.camera[key]:previous.camera[key]+(result.camera[key]-previous.camera[key])*ease;this.viewport?.setAttribute('transform',`translate(${this.x} ${this.y}) scale(${this.scale})`);this.onZoom?.(Math.round(this.scale*100));this.paint();};
       if(matchMedia('(prefers-reduced-motion: reduce)').matches)apply(1);
       else await new Promise(resolve=>{
         let start=0,frame;

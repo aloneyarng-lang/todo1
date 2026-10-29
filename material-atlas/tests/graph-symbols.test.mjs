@@ -4,6 +4,7 @@ import {readFile,mkdir,mkdtemp} from 'node:fs/promises';
 import path from 'node:path';
 import {BUILTIN_THEMES,resolveTheme,themePackage,parseThemePackage,importThemeFiles,themeCSS,parseThemeCSS} from '../dist/theme-model.js';
 import {LocalLibrary} from '../desktop/library.mjs';
+import {GRAPH_APPEARANCE_VERSION} from '../dist/graph-appearance.js';
 
 test('Reimu is available offline with two modes and exports its actual artwork',()=>{
  for(const id of ['reimu-day','reimu-night']){
@@ -29,5 +30,5 @@ test('old complete packages and CSS still import alongside new symbols, and nati
  rows.push({name:'new.json',text:themePackage(resolveTheme({selected:'reimu-night'}))});
  let n=0;const prefs=importThemeFiles({},rows,()=>`custom-compat-${n++}`);assert.equal(prefs.themes.length,4);
  await mkdir('.local/tests',{recursive:true});const dir=await mkdtemp(path.resolve('.local/tests/graph-symbols-')),lib=await new LocalLibrary(dir).init();
- await lib.setSetting('themePreferences',prefs);const restored=await new LocalLibrary(dir).init();assert.deepEqual(restored.getSetting('themePreferences'),prefs);assert.equal((await restored.info()).graphThemeVersion,4);
+ await lib.setSetting('themePreferences',prefs);const restored=await new LocalLibrary(dir).init();assert.deepEqual(restored.getSetting('themePreferences'),prefs);assert.equal((await restored.info()).graphThemeVersion,GRAPH_APPEARANCE_VERSION);
 });

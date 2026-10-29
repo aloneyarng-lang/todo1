@@ -1,8 +1,8 @@
 // Safe graph appearance tokens shared by CSS themes, complete packages and the SVG renderer.
-export const GRAPH_APPEARANCE_VERSION=4;
+export const GRAPH_APPEARANCE_VERSION=5;
 export const GRAPH_FIELDS={
- nodeShape:{token:'--graph-node-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','symbol']},
- relationShape:{token:'--graph-relation-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','symbol']},
+ nodeShape:{token:'--graph-node-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','nova','symbol']},
+ relationShape:{token:'--graph-relation-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','nova','symbol']},
  nodeFill:{token:'--graph-node-fill',default:'solid',values:['solid','hollow']},
  edgeStyle:{token:'--graph-edge-style',default:'straight',values:['straight','curve']},
  edgeDash:{token:'--graph-edge-dash',default:'solid',values:['solid','dashed','dotted']},
@@ -16,6 +16,8 @@ export const GRAPH_FIELDS={
  labelHalo:{token:'--graph-label-halo',default:'3px',range:[0,6],unit:'px'},
  glow:{token:'--graph-glow',default:'0px',range:[0,8],unit:'px'},
  edgeColor:{token:'--graph-edge-color',default:'auto',color:true},
+ nodeColor:{token:'--graph-node-color',default:'auto',color:true},
+ relationColor:{token:'--graph-relation-color',default:'auto',color:true},
  labelColor:{token:'--graph-label-color',default:'auto',color:true},
  starDensity:{token:'--graph-star-density',default:'1',range:[0,2]},
  starOpacity:{token:'--graph-star-opacity',default:'.55',range:[0,1]},
@@ -55,6 +57,7 @@ export function getGraphThemeProfile(id){return themeProfiles.get(id);}
 export function graphAppearance(tokens={},preset='theme'){return themeProfiles.has(preset)?{...themeProfiles.get(preset).graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:preset!=='theme'&&GRAPH_PRESETS[preset]?{...GRAPH_PRESETS[preset].graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:graphFromTokens(tokens);}
 export function nodeGeometry(shape,r){
  if(shape==='symbol')return{tag:'g',attrs:{}};
+ if(shape==='nova')return{tag:'circle',attrs:{r:r*.46}};
  if(shape==='star')return{tag:'path',attrs:{d:`M0 ${-r*1.25} Q${r*.16} ${-r*.16} ${r*1.05} 0 Q${r*.16} ${r*.16} 0 ${r*1.25} Q${-r*.16} ${r*.16} ${-r*1.05} 0 Q${-r*.16} ${-r*.16} 0 ${-r*1.25} Z`}};
  if(shape==='planet')return{tag:'circle',attrs:{r:r*.68}};
  if(shape==='square')return{tag:'rect',attrs:{x:-r*.85,y:-r*.85,width:r*1.7,height:r*1.7,rx:r*.16}};

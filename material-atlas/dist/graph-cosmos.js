@@ -8,6 +8,11 @@ export function cosmicStars(density=1,seed=42){
  return Array.from({length:count},(_,index)=>({x:random()*1000,y:random()*700,r:.22+random()**3*1.2,opacity:.18+random()*.7,spike:index%47===0,delay:-random()*12,duration:7+random()*6}));
 }
 export function cosmicNodeParts(shape,r,appearance){
+ if(shape==='nova'){
+  const halo=[2.4,1.85,1.4,1.02,.72].map((size,i)=>({tag:'circle',attrs:{r:r*size,class:'nova-halo',opacity:[.025,.045,.075,.12,.23][i]}}));
+  const rays=[0,45,90,135].map((angle,i)=>({tag:'path',attrs:{d:`M${-r*(i%2?1.45:2.1)} 0 L0 ${-r*.075} L${r*(i%2?1.45:2.1)} 0 L0 ${r*.075} Z`,transform:`rotate(${angle})`,class:'nova-ray',opacity:i%2?.34:.7}}));
+  return{back:[...halo,...rays,{tag:'circle',attrs:{r:r*.95,class:'nova-orbit'}}],front:[{tag:'circle',attrs:{r:r*.19,class:'nova-white-core'}}],radius:r*1.25};
+ }
  if(shape!=='star'&&shape!=='planet')return{back:[],front:[],radius:r*(shape==='circle'?1:1.21)};
  const corona=[1.8,1.3,.87].map((size,index)=>({tag:'circle',attrs:{r:r*size,class:'cosmic-corona',opacity:[.035,.07,.13][index]}}));
  if(shape==='star')return{back:corona,front:[{tag:'circle',attrs:{r:r*.2,class:'cosmic-star-core'}}],radius:r*1.3};

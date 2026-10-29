@@ -1,3 +1,4 @@
+import {applyThemeArtwork,artworkURL} from './theme-artwork.js';
 import {GRAPH_THEME_TOKENS,GRAPH_FIELDS} from './graph-appearance.js';
 import {THEME_TOKENS,fontBytes} from './theme-model.js';
 import {setIconTheme} from './icons.js';
@@ -11,6 +12,7 @@ const validToken=(key,value)=>Object.hasOwn(GRAPH_THEME_TOKENS,key)?(!Object.val
 export async function validateThemeResources(theme){
  for(const[key,value]of Object.entries(theme.tokens))if(!validToken(key,value))throw new Error('主题变量 '+key+' 的 CSS 值无法识别。');
  for(const asset of theme.assets?.fonts||[]){const face=new FontFace('MateriaValidation_'+asset.id,fontBytes(asset),{weight:asset.weight,style:asset.style});try{await face.load();}catch{throw new Error(`字体「${asset.family}」无法解码，主题未导入。`);}}
+ for(const asset of Object.values(theme.assets?.artwork||{})){const image=new Image();image.src=artworkURL(asset);try{await image.decode();if(image.naturalWidth>8192||image.naturalHeight>8192)throw Error();}catch{throw new Error('主题图片无法解码或尺寸超过 8192 像素。');}}
 }
 export function createThemeRuntime(changed){
  let generation=0,faces=[],ready=Promise.resolve(),status='';
@@ -26,7 +28,7 @@ export function createThemeRuntime(changed){
   root.style.setProperty('--icon-stroke',String(theme.icons.strokeWidth));root.style.setProperty('--icon-size',theme.icons.size+'px');
   Object.assign(root.dataset,{theme:theme.id,themeMode:theme.tokens['--theme-mode'],themeStyle:theme.ui.style,themeButtons:theme.ui.buttonStyle,themeCards:theme.ui.cardStyle,themeSidebar:theme.ui.sidebarStyle,themeShadow:theme.ui.shadow,themeIcons:theme.icons.style});root.style.colorScheme=theme.tokens['--theme-mode'];setIconTheme(theme.icons);
   const glass=true;root.dataset.liquidGlass='true';root.dataset.themeStyle='glass';
-  setGlassInteractions(glass);setGraphSymbols(theme.assets?.graphSymbols||{});
+  applyThemeArtwork(theme);setGlassInteractions(glass);setGraphSymbols(theme.assets?.graphSymbols||{});
   const assets=theme.assets?.fonts||[],missing=theme.fontWarnings?.length||0;status=assets.length?'正在加载主题字体…':missing?'主题资源字体缺失或损坏，已使用后备字体。':'使用系统字体，缺少字体时采用后备字体。';root.dataset.themeFonts=assets.length?'loading':missing?'fallback':'system';
   const embedded=Promise.allSettled(assets.map(async asset=>{const face=new FontFace(aliases.get(asset.family),fontBytes(asset),{weight:asset.weight,style:asset.style,display:'swap'});await face.load();if(ticket===generation){document.fonts.add(face);faces.push(face);}}));
   ready=Promise.all([embedded,loadBuiltinFonts(theme.tokens)]).then(([results,builtin])=>{

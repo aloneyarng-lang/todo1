@@ -14,7 +14,7 @@ test('cosmic graph API round trips through real package and CSS import/export wi
  const theme=resolveTheme(prefs);for(const[key,value]of Object.entries(graph))assert.equal(theme.graph[key],value);
  assert.deepEqual(parseThemePackage(themePackage(theme)).graph,theme.graph);
  assert.deepEqual(graphFromTokens(parseThemeCSS(themeCSS('Cosmos',theme.tokens)).tokens),theme.graph);
- assert.equal(GRAPH_APPEARANCE_VERSION,4);
+ assert.equal(GRAPH_APPEARANCE_VERSION,5);
 });
 test('cosmic values are bounded, typed and rejected before changing saved preferences',()=>{
  const before={selected:'paper',themes:[]};
