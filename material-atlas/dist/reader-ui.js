@@ -2,7 +2,7 @@ import {icon} from './icons.js';
 import {actionMenu} from './action-menus.js';
 import {MARK_COLORS,anchorMatchesPaper,cleanReaderState,cleanReaderDrafts} from './note-model.js';
 import {noteImagesHTML,compressNoteImages,openNoteImage} from './note-media.js';
-import {READER_LAYOUTS,visibleReaderPages,turnReaderPage,fitReaderScale,readerNoteContent,sameReaderNote} from './reader-layout.js';
+import {READER_LAYOUTS,visibleReaderPages,turnReaderPage,fitReaderScale,readerRasterPlan,readerNoteContent,sameReaderNote} from './reader-layout.js';
 import {annotationName,gestureAnnotation,transformAnnotation,annotationHTML,translationAnnotation} from './reader-annotations.js';
 import {pdfPageText} from './study-model.js';
 import {createReaderStudy,readerStudyHTML} from './reader-study.js';
@@ -165,12 +165,12 @@ export function createPDFReader(config){
     const loadedPages=await Promise.all(pages.map(number=>current.getPage(number)));if(version!==renderVersion||!host.open)return;
     const sizes=loadedPages.map(pdf=>pdf.getViewport({scale:1})),endBlank=layout!=='single'&&pages.length===1&&doc.numPages>1&&!(layout==='book'&&pages[0]===1);
     actualScale=typeof zoom==='number'?zoom:fitReaderScale(endBlank?[...sizes,sizes[0]]:sizes,Math.max(160,scroll.clientWidth-48),Math.max(160,scroll.clientHeight-92),zoom);
-    const nextKey=pages.join(',')+'|'+actualScale.toFixed(5);
+    const density=window.devicePixelRatio||1,viewports=loadedPages.map(pdf=>pdf.getViewport({scale:actualScale})),raster=readerRasterPlan(viewports,density);
+    const nextKey=pages.join(',')+'|'+actualScale.toFixed(5)+'|'+density+'|'+raster.map(p=>p.width+'x'+p.height).join(',');
     if(nextKey===renderKey){renderTasks.forEach(task=>task.cancel());textLayers.forEach(layer=>layer.cancel());$('#reader-render-buffer').replaceChildren();delete host.dataset.rendering;$('#reader-stage').setAttribute('aria-busy','false');updateNavigation();updateMode();if(savedAnchor)scrollToPoint(savedAnchor);savePosition();return;}
     renderTasks.forEach(task=>task.cancel());textLayers.forEach(layer=>layer.cancel());renderTasks=[];textLayers=[];
     host.dataset.rendering='true';$('#reader-stage').setAttribute('aria-busy','true');status('正在准备页面，当前内容仍可查看…');
     const group=document.createElement('div');group.className='reader-spread';group.dataset.pages=pages.join(',');
-    const viewports=loadedPages.map(pdf=>pdf.getViewport({scale:actualScale})),ratio=Math.min(devicePixelRatio||1,2,Math.sqrt(20000000/viewports.reduce((sum,v)=>sum+v.width*v.height,0)));
     const buffer=$('#reader-render-buffer');buffer.replaceChildren(group);
     try{
       const module=await ensurePDF();if(version!==renderVersion)return;
@@ -178,8 +178,8 @@ export function createPDFReader(config){
         const number=pages[index],viewport=viewports[index],frame=document.createElement('div');frame.className='reader-page';frame.dataset.readerPage=String(number);frame.dataset.page=String(number);frame.dataset.rendered='loading';
         frame.style.width=viewport.width+'px';frame.style.height=viewport.height+'px';frame.style.setProperty('--total-scale-factor',String(actualScale*pdf.userUnit));
         frame.innerHTML=`<canvas aria-label="PDF 第 ${number} 页"></canvas><div class="textLayer"></div><div class="reader-mark-layer"></div><span class="reader-page-label">${number}</span>`;group.append(frame);
-        const canvas=frame.querySelector('canvas');canvas.width=Math.floor(viewport.width*ratio);canvas.height=Math.floor(viewport.height*ratio);canvas.style.width=viewport.width+'px';canvas.style.height=viewport.height+'px';
-        const task=pdf.render({canvasContext:canvas.getContext('2d'),viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:null});renderTasks.push(task);await task.promise;if(version!==renderVersion)return;
+        const canvas=frame.querySelector('canvas'),pixels=raster[index];canvas.width=pixels.width;canvas.height=pixels.height;canvas.style.width=viewport.width+'px';canvas.style.height=viewport.height+'px';
+        const task=pdf.render({canvasContext:canvas.getContext('2d'),viewport,transform:[pixels.scaleX,0,0,pixels.scaleY,0,0]});renderTasks.push(task);await task.promise;if(version!==renderVersion)return;
         const layer=new module.TextLayer({textContentSource:pdf.streamTextContent(),container:frame.querySelector('.textLayer'),viewport});textLayers.push(layer);await layer.render();frame.dataset.rendered='true';
       }));
       if(version!==renderVersion||!host.open){group.remove();return;}
@@ -378,7 +378,12 @@ export function createPDFReader(config){
   host.addEventListener('dblclick',event=>{const mark=event.target.closest('[data-reader-mark]');if(mark&&mode==='read'){event.preventDefault();selectAnnotation(mark.dataset.readerMark,true);}});
   host.addEventListener('scroll',event=>{if(event.target.id==='reader-scroll')positionAnnotationTools();},true);
   host.addEventListener('cancel',event=>{event.preventDefault();if($('#reader-selection-translation')){study.dismiss();return;}if(inlineOpen){inlineOpen=false;positionAnnotationTools();}else if(mode!=='read'){mode='read';updateMode();}else if(selected){selected='';paintMarks();}else close();});host.addEventListener('close',()=>{if(!host.open)dispose();});
-  new ResizeObserver(()=>{clearTimeout(resizeTimer);if(host.open&&doc&&typeof zoom==='string')resizeTimer=setTimeout(()=>renderPages({preserve:true}).catch(error=>status(error.message)),160);}).observe(host);
+  new ResizeObserver(()=>{if(host.open&&doc&&typeof zoom==='string'){clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>renderPages({preserve:true}).catch(error=>status(error.message)),160);}}).observe(host);
+  let densityQuery,densityValue;
+  function watchDensity(){densityQuery?.removeEventListener('change',densityChanged);densityValue=window.devicePixelRatio||1;densityQuery=matchMedia(`(resolution: ${densityValue}dppx)`);densityQuery.addEventListener('change',densityChanged);}
+  function densityChanged(){if(densityValue===(window.devicePixelRatio||1))return;watchDensity();if(host.open&&doc){clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>renderPages({preserve:true}).catch(error=>status(error.message)),100);}}
+  window.addEventListener('resize',densityChanged);window.addEventListener('focus',densityChanged);document.addEventListener('visibilitychange',densityChanged);
+  watchDensity();
   document.addEventListener('selectionchange',()=>{
     if(!host.open)return;const selection=getSelection(),node=selection?.anchorNode,element=node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement,frame=element?.closest('#reader-stage .reader-page');
     if(frame&&!selection.isCollapsed&&element.closest('.textLayer')){
