@@ -9,11 +9,11 @@ export function createReadingStatusController(config){
   const esc=config.escape,menu=document.createElement('div');menu.className='paper-context-panel reading-status-menu';menu.id='reading-status-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');menu.setAttribute('aria-label','设置阅读状态');document.body.append(menu);
   let targets=[],origin=null,busy=false;
   const open=()=>menu.matches(':popover-open');
-  function close(restore=false){if(open())menu.hidePopover();origin?.setAttribute('aria-expanded','false');if(restore){const fallback=document.querySelector('#reading-status-filters [aria-pressed=true]');(origin?.isConnected?origin:fallback)?.focus({preventScroll:true});}}
+  function close(restore=false){if(open())menu.hidePopover();origin?.setAttribute('aria-expanded','false');if(restore){const fallback=document.querySelector('#reading-status-filter');(origin?.isConnected?origin:fallback)?.focus({preventScroll:true});}}
   function render(){
-    close();const host=document.querySelector('#reading-status-filters');if(!host)return;host.hidden=!config.isVisible();
+    close();const host=document.querySelector('#reading-status-filter');if(!host)return;host.hidden=!config.isVisible();
     const papers=config.getScopePapers(),counts=readingStatusCounts(papers),selected=config.getFilter();
-    host.innerHTML=`<div class="reading-status-filter-group" role="group" aria-label="按阅读状态筛选"><button type="button" data-reading-filter="" aria-pressed="${!selected}">全部<small>${papers.length}</small></button>${READING_STATUSES.map(s=>`<button type="button" data-reading-filter="${s.id}" data-reading-status="${s.id}" aria-pressed="${selected===s.id}"><i class="reading-status-dot" aria-hidden="true"></i>${s.name}<small>${counts[s.id]}</small></button>`).join('')}</div>`;
+    host.replaceChildren(new Option(`阅读状态 · 全部 ${papers.length}`,''),...READING_STATUSES.map(s=>new Option(`${s.name} ${counts[s.id]}`,s.id)));host.value=selected;
   }
   function show(ids,button){
     if(busy||!config.canEdit())return;
@@ -29,6 +29,7 @@ export function createReadingStatusController(config){
     try{const result=await config.persist(captured,status);await config.reload();const feedback=document.querySelector('#reading-status-feedback');if(feedback)feedback.textContent=`${captured.length} 篇文献已设为${READING_STATUSES.find(s=>s.id===status)?.name||status}`;return result;}
     finally{busy=false;menu.setAttribute('aria-busy','false');menu.querySelectorAll('button').forEach(b=>b.disabled=false);}
   }
+  document.addEventListener('change',event=>{if(event.target.id==='reading-status-filter')config.setFilter(event.target.value);});
   document.addEventListener('click',event=>{
     const filter=event.target.closest('[data-reading-filter]');if(filter){config.setFilter(filter.dataset.readingFilter);return;}
     const button=event.target.closest('[data-reading-paper],[data-reading-selected]');if(button)show(button.hasAttribute('data-reading-selected')?[...config.getSelection()]:[button.dataset.readingPaper],button);

@@ -87,7 +87,7 @@ const map = new StarMap($('#star-map'), {
 const notes = createNotesController({
   escape, showModal, toast, getPapers: papers, getNotes: () => state.notes, openReader:(id,noteId)=>reader.open(id,noteId),
   canEdit: () => state.mode === 'own' && !state.storageError,
-  persist: async value => { await setSetting('notes', value); state.notes = value; renderDetail(); hydrateIcons($('#detail-panel')); },
+  persist: async value => { await setSetting('notes', value); state.notes = value; render(); },
   jumpPaper: id => { closeModal(); state.nav = 'all'; resetFilters(false); state.selected = id; render(); selectPaper(id, true); },
   graphTag: tag => { if (!eligibleTags(papers()).has(tag)) { toast('标签关联至少 3 篇文献后，才能在星图中筛选。'); return; } closeModal(); state.nav = 'all'; resetFilters(false); state.tag = tag; state.view = 'graph'; map.fit(); render(); },
 });
@@ -124,7 +124,7 @@ function render() {
   $('#collection-list').innerHTML = folders.length ? folders.map(c => `<button class="collection-item ${state.collection === c.id ? 'active' : ''}" data-collection="${escape(c.id)}"><i class="collection-dot" style="background:${/^#[\da-f]{6}$/i.test(c.color) ? c.color : PALETTE[0]}"></i><span>${escape(c.name)}</span><small>${all.filter(p => p.collection === c.id).length}</small></button>`).join('') : '<p class="empty-folders">暂无文献分组</p>';
   $('#library-location').title = state.desktopInfo?.path || '本地文献库';
   $('.network-header-controls [data-action="associations"]').hidden=state.view!=='graph';$('#toggle-local').hidden=state.view!=='graph';
-  $('#graph-caption').textContent = state.view==='materials'?'材料列表':state.view==='list'?'文献列表':state.tag ? `# ${state.tag}` : state.collection ? navTitle : '研究星图';
+  $('#graph-caption').textContent = state.view==='notes'?'研究笔记':state.view==='materials'?'材料列表':state.view==='list'?'文献列表':state.tag ? `# ${state.tag}` : state.collection ? navTitle : '研究星图';
   $('#visible-count').textContent = `${filtered.length} 篇文献${state.view === 'graph' && filtered.length > 350 ? ' · 展示前 350 篇' : ''}`;
   const years = [...new Set(all.map(p => p.year).filter(Boolean))].sort().reverse();
   $('#year-filter').innerHTML = '<option value="">全部年份</option>' + years.map(year => `<option value="${escape(year)}">${escape(year)}</option>`).join('');
@@ -132,15 +132,18 @@ function render() {
   $('#sort-order').value = state.sort;
   renderFilterOptions();
   renderParameterSummary(filtered);
+  const noteView=state.view==='notes';
+  $('#notes-library').hidden=!noteView;
   const materialView = state.view === 'materials';
   $('#material-list').hidden = !materialView;
   $('.surface-toolbar .search-box').hidden = materialView;
   $('#sort-order').hidden = materialView;
+  $('#sort-order option[value="newest"]').textContent=noteView?'笔记最近更新':'最近添加';
   $('.quick-filters').hidden = materialView;
   if (materialView) $('#parameter-filter-summary').hidden = true;
   $('#network-stats').hidden = state.view !== 'graph';
   $('#filter-button').hidden = materialView;
-  $('.map-footer').hidden = materialView;
+  $('.map-footer').hidden = materialView||noteView;
   const filterCount = state.filters.excludeTags.length + Object.entries(state.filters).filter(([key, value]) => !['tags', 'excludeTags', 'tagMode', 'parameterName', 'parameterUnit'].includes(key) && Boolean(value)).length;
   $('#active-filter-count').textContent = filterCount;
   $('#active-filter-count').hidden = !filterCount;
@@ -155,7 +158,7 @@ function render() {
   map.options = { showEdges: state.showEdges, showLabels: state.showLabels };
   const graphPapers=state.graphPreferences.localMode?associationLocalPapers(filtered,state.associations,state.selected,state.graphPreferences.localDepth):filtered;
   map.configure(state.graphPreferences,collections(),state.associations);map.setData(graphPapers,state.selected,groups);
-  if(state.graphPreferences.localMode&&!materialView)$('#visible-count').textContent=`局部 ${graphPapers.length} / 筛选 ${filtered.length} 篇`;
+  if(state.graphPreferences.localMode&&state.view==='graph')$('#visible-count').textContent=`局部 ${graphPapers.length} / 筛选 ${filtered.length} 篇`;
   renderGraphPreferences();$('#ribbon-import').disabled=!state.ready||state.storageError;
   const empty = $('#graph-empty'); empty.hidden = filtered.length > 0;
   if (!filtered.length) {
@@ -164,6 +167,7 @@ function render() {
   }
   if (state.view === 'list') renderList(filtered);
   if (materialView) materialList?.render();
+  if(noteView){const count=notes.renderLibrary($('#notes-library'),filtered,{query:['all','notes'].includes(state.searchScope)?state.query:'',sort:state.sort});$('#visible-count').textContent=`${count} 条笔记 · ${filtered.length} 篇文献`;}
   renderDetail();
   hydrateIcons();
   comparison?.refreshBar();
@@ -402,7 +406,7 @@ async function restoreFile(file) {
 function resetFilters(shouldRender = true) { state.readingStatus='';state.query = ''; state.tag = ''; state.year = ''; state.collection = ''; state.sort = 'newest'; state.filters = emptyFilters(); state.hiddenIds.clear(); state.listLimit = 100; $('#search').value = ''; if (shouldRender) render(); }
 
 function helpModal() {
-  showModal('从阅读，到连接', '一个安静、专注的材料文献研究空间。', `<div class="guide-step"><span>1</span><div><strong>收录原始 PDF</strong><p>选择或拖入多份 PDF；相同文件自动去重。桌面版将文件保存至本地文献库文件夹，可在设置里更换位置。</p></div></div><div class="guide-step"><span>2</span><div><strong>补充完整信息</strong><p>编辑标题、全部作者与机构、期刊和标签，或导入其他 AI 整理的 JSON。年度影响因子可通过 CSV / JSON 导入。</p></div></div><div class="guide-step"><span>3</span><div><strong>让思考彼此连接</strong><p>点击标题或标签，分别添加多条笔记。使用 [[完整标题]] 和 [[#标签]] 互相跳转，目标处会显示反向链接。</p></div></div><div class="guide-step"><span>4</span><div><strong>搜索与探索</strong><p>搜索标题、标签、作者、机构和笔记。过滤支持多标签、期刊、年份与 IF 范围，星图和列表同步更新，IF 支持升降序排列。</p></div></div><div class="guide-step"><span>译</span><div><strong>对照翻译与生词复习</strong><p>在 PDF 中选中文字后，点击弹窗「翻译」才会发送请求；译文出现后点击「添加批注」贴到原文附近。也可在右侧「译文」主动翻译当前页或整篇。短词可保存到生词本，记录原句与页码，左侧「译」可搜索、复习与导出。</p></div></div><div class="guide-step"><span>5</span><div><strong>把积累带走</strong><p>导出完整备份，包含 PDF、笔记、作者机构、期刊指标、生词本和译文；可在其他设备恢复。桌面版也可直接复制整个文献库文件夹。</p></div></div><div class="info-box">所有文献信息由你填写或导入，PDF 文件留在本地。主动翻译时会把选文或页面文字发给已配置的 AI 服务；程序不自动生成标签或影响因子。</div><div class="modal-footer"><button class="primary" data-action="close-modal">开始探索</button></div>`, 'help');
+  showModal('从阅读，到连接', '一个安静、专注的材料文献研究空间。', `<div class="guide-step"><span>1</span><div><strong>收录原始 PDF</strong><p>选择或拖入多份 PDF；相同文件自动去重。桌面版将文件保存至本地文献库文件夹，可在设置里更换位置。</p></div></div><div class="guide-step"><span>2</span><div><strong>补充完整信息</strong><p>编辑标题、全部作者与机构、期刊和标签，或导入其他 AI 整理的 JSON。年度影响因子可通过 CSV / JSON 导入。</p></div></div><div class="guide-step"><span>3</span><div><strong>让思考彼此连接</strong><p>点击标题或标签，分别添加多条笔记。使用 [[完整标题]] 和 [[#标签]] 互相跳转，目标处会显示反向链接。</p></div></div><div class="guide-step"><span>4</span><div><strong>搜索与探索</strong><p>搜索标题、标签、作者、机构和笔记。过滤支持多标签、期刊、年份与 IF 范围，星图和列表同步更新，IF 支持升降序排列。</p></div></div><div class="guide-step"><span>译</span><div><strong>对照翻译与生词复习</strong><p>在 PDF 中选中文字后，点击弹窗「翻译」才会发送请求；译文出现后点击「添加批注」贴到原文附近。也可在右侧「译文」主动翻译当前页或整篇。短词可保存到生词本，记录原句与页码，左侧字典图标可搜索、复习与导出。</p></div></div><div class="guide-step"><span>5</span><div><strong>把积累带走</strong><p>导出完整备份，包含 PDF、笔记、作者机构、期刊指标、生词本和译文；可在其他设备恢复。桌面版也可直接复制整个文献库文件夹。</p></div></div><div class="info-box">所有文献信息由你填写或导入，PDF 文件留在本地。主动翻译时会把选文或页面文字发给已配置的 AI 服务；程序不自动生成标签或影响因子。</div><div class="modal-footer"><button class="primary" data-action="close-modal">开始探索</button></div>`, 'help');
 }
 function shortcutsModal() {
   showModal('留一点时间给思考', '让常用操作更快一步。', '<div class="shortcut-row"><span>搜索文献</span><kbd>/</kbd></div><div class="shortcut-row"><span>导入文献</span><kbd>N</kbd></div><div class="shortcut-row"><span>切换星图 / 列表</span><kbd>V</kbd></div><div class="shortcut-row"><span>适应全部可见节点</span><kbd>0</kbd></div><div class="shortcut-row"><span>关闭弹窗 / 详情</span><kbd>Esc</kbd></div><div class="shortcut-row"><span>快捷键说明</span><kbd>?</kbd></div><div class="modal-footer"><button class="primary" data-action="close-modal">记住了</button></div>', 'shortcuts');
@@ -615,7 +619,7 @@ async function openStudySource(source){
   await reader.openAt(paper.id,source.page);
 }
 vocabularyController=createVocabularyController({escape,saveText,openSource:openStudySource});
-reader=createPDFReader({escape,toast,saveText,openStudySource,translate:(...args)=>agentController.translate(...args),translationStatus:()=>agentController.serviceStatus(),configureTranslation:async()=>{if(await reader.close())await agentController.openSettings();},getPaper:id=>state.papers.find(p=>p.id===id),getNotes:()=>state.notes,renderText:body=>notes.renderText(body),beforeOpen:closeModal,openTag:tag=>notes.open('tag',tag),readPDF:async p=>native?native.readPdf(p.id):p.file?new Uint8Array(await p.file.arrayBuffer()):Promise.reject(new Error('这条文献没有 PDF 文件')),getPosition:()=>getSetting('readerState'),getDrafts:()=>getSetting('readerDrafts'),saveDrafts:value=>{if(native&&!state.desktopInfo?.readerDraftsVersion)return Promise.reject(new Error('请重新启动 Materia 以启用本地草稿；内容仍保留在编辑区，也可先正式保存笔记。'));return setSetting('readerDrafts',value);},savePosition:value=>native&&!state.desktopInfo?.readerNotesVersion?Promise.resolve():setSetting('readerState',value),saveNote:async(id,note)=>{const key='paper:'+id,list=state.notes[key]||[],next={...state.notes,[key]:[...list.filter(n=>n.id!==note.id),note]};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},deleteNote:async(id,noteId)=>{const key='paper:'+id,next={...state.notes,[key]:(state.notes[key]||[]).filter(n=>n.id!==noteId)};await setSetting('notes',next);state.notes=next;renderDetail();hydrateIcons($('#detail-panel'));},openExternal:async p=>{if(native)return native.openPdf(p.id);if(!p.file)throw new Error('没有 PDF 文件');const url=URL.createObjectURL(p.file),win=window.open(url,'_blank');if(win)win.opener=null;setTimeout(()=>URL.revokeObjectURL(url),60000);}});
+reader=createPDFReader({escape,toast,saveText,openStudySource,translate:(...args)=>agentController.translate(...args),translationStatus:()=>agentController.serviceStatus(),configureTranslation:async()=>{if(await reader.close())await agentController.openSettings();},getPaper:id=>state.papers.find(p=>p.id===id),getNotes:()=>state.notes,renderText:body=>notes.renderText(body),beforeOpen:closeModal,openTag:tag=>notes.open('tag',tag),readPDF:async p=>native?native.readPdf(p.id):p.file?new Uint8Array(await p.file.arrayBuffer()):Promise.reject(new Error('这条文献没有 PDF 文件')),getPosition:()=>getSetting('readerState'),getDrafts:()=>getSetting('readerDrafts'),saveDrafts:value=>{if(native&&!state.desktopInfo?.readerDraftsVersion)return Promise.reject(new Error('请重新启动 Materia 以启用本地草稿；内容仍保留在编辑区，也可先正式保存笔记。'));return setSetting('readerDrafts',value);},savePosition:value=>native&&!state.desktopInfo?.readerNotesVersion?Promise.resolve():setSetting('readerState',value),saveNote:async(id,note)=>{const key='paper:'+id,list=state.notes[key]||[],next={...state.notes,[key]:[...list.filter(n=>n.id!==note.id),note]};await setSetting('notes',next);state.notes=next;if(state.view==='notes')render();else renderDetail();hydrateIcons($('#detail-panel'));},deleteNote:async(id,noteId)=>{const key='paper:'+id,next={...state.notes,[key]:(state.notes[key]||[]).filter(n=>n.id!==noteId)};await setSetting('notes',next);state.notes=next;if(state.view==='notes')render();else renderDetail();hydrateIcons($('#detail-panel'));},openExternal:async p=>{if(native)return native.openPdf(p.id);if(!p.file)throw new Error('没有 PDF 文件');const url=URL.createObjectURL(p.file),win=window.open(url,'_blank');if(win)win.opener=null;setTimeout(()=>URL.revokeObjectURL(url),60000);}});
 associationController=createAssociationController({escape,showModal,toast,getPapers:papers,getVisible:visiblePapers,getRules:()=>state.associations,save:async rules=>{const clean=cleanAssociations(rules);await setSetting('graphAssociations',clean);state.associations=clean;},changed:render});
 themeController=createThemeController({escape,showModal,toast,saveText,persist:async value=>{if(native&&!(Number(state.desktopInfo?.themeSchemaVersion)>=2))throw new Error('请重新启动 Materia 后再保存主题，当前桌面存储接口尚未支持完整主题包。');if(native&&!(Number(state.desktopInfo?.graphThemeVersion)>=4))throw new Error('请重新启动 Materia 后再保存主题，当前桌面存储接口尚未支持新版星图主题。');await setSetting('themePreferences',value);},changed:()=>{renderGraphPreferences();map.applyAppearance();}});
 parameterFinder=createParameterFinder({escape,showModal,toast,getPapers:papers,apply:applyParameterFilter});

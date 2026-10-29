@@ -1,4 +1,5 @@
 import {readStudy,updateStudy} from './study-client.js';
+import {icon} from './icons.js';
 import {TRANSLATION_LANGUAGES,vocabularyMarkdown} from './study-model.js';
 const statuses={new:'未学习',learning:'学习中',mastered:'已掌握'};
 export function vocabularyShell(){return `<div class="vocab-tools"><input type="search" data-vocab-search aria-label="搜索生词" placeholder="搜索词语、词义或文献…"><select data-vocab-filter aria-label="学习状态"><option value="">全部状态</option>${Object.entries(statuses).map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select><button type="button" data-vocab-export>导出 MD</button></div><p data-vocab-status role="status"></p><div class="vocab-list"></div>`;}
@@ -34,6 +35,6 @@ export function createVocabularyController(options){
   dialog.addEventListener('keydown',event=>event.stopPropagation());
   const view=createVocabularyView(dialog.querySelector('.vocabulary-content'),{...options,openSource:async source=>{dialog.close();await options.openSource(source);}});
   dialog.querySelector('[data-vocab-close]').onclick=()=>dialog.close();
-  const button=document.createElement('button');button.className='ribbon-button';button.title='生词本';button.setAttribute('aria-label','生词本');button.textContent='译';button.dataset.action='vocabulary';document.querySelector('.workspace-ribbon')?.insertBefore(button,document.querySelector('.ribbon-spacer'));
+  const button=document.createElement('button');button.className='ribbon-button';button.title='生词本';button.setAttribute('aria-label','生词本');button.innerHTML=icon('dictionary');button.dataset.action='vocabulary';document.querySelector('.workspace-ribbon')?.insertBefore(button,document.querySelector('.ribbon-spacer'));
   return{async open(){await view.refresh();if(!dialog.open)dialog.showModal();dialog.querySelector('input').focus();}};
 }
