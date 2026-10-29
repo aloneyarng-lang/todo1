@@ -50,5 +50,6 @@ backups/
 
 # Machine-specific shortcuts and generated theme previews
 *.lnk
+!Materia.exe - 快捷方式.lnk
 **/theme-examples/*preview.png
 **/theme-examples/*comparison.png
