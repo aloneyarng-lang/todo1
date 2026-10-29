@@ -26,20 +26,21 @@ const {chromium} = require(path.join(process.env.USERPROFILE, '.cache/codex-runt
     await Promise.race([exit, new Promise((_, reject) => {const timer = setTimeout(() => reject(Error('Desktop close/save timed out')), 15000); timer.unref();})]);
     await browser.close().catch(() => {}); browser = null; child = null;
   }
+  async function materialAction(name){const button=page.locator(`[data-material-list-action="${name}"]`);if(!await button.isVisible())await page.locator('[data-menu-toggle="material-organize-menu"]').click();await button.click();}
   try {
     await start(); await page.locator('[data-view="list"]').click(); await page.locator('#clear-paper-selection').click();
     await page.waitForFunction(async () => (await materiaDesktop.getSetting('comparisonSelection')).length === 0);
     await page.locator('[data-view="materials"]').click(); assert.equal(await page.locator('[data-material-list-choice]').count(), 2);
-    await page.locator('[data-material-list-action="select-results"]').click();
+    await materialAction('select-results');
     await page.locator('[data-material-list-action="create-group"]').click(); await page.locator('#material-group-form [name="name"]').fill('跨来源合金组'); await page.locator('#material-group-form [type="submit"]').click(); await page.waitForFunction(() => !document.querySelector('#modal').open);
     let saved = await page.evaluate(() => materiaDesktop.getSetting('comparisonState')); assert.equal(saved.groups.length, 1); assert.equal(saved.groups[0].members.length, 2); assert.equal(saved.keys.length, 2);
-    await page.locator('[data-material-list-action="table"]').click(); assert.equal(await page.locator('.material-matrix thead strong').count(), 2); assert.equal(await page.locator('.material-source-row td').count(), 2); await page.locator('#modal [data-action="close-modal"]').last().click();
+    await materialAction('table'); assert.equal(await page.locator('.material-matrix thead strong').count(), 2); assert.equal(await page.locator('.material-source-row td').count(), 2); await page.locator('#modal [data-action="close-modal"]').last().click();
     await page.locator('[data-material-list-action="chart"]').click(); await page.waitForFunction(() => document.querySelector('#chart-point-count')?.textContent.includes('2 个观测点')); await page.locator('#modal [data-action="close-modal"]').last().click();
     await page.screenshot({path: path.join(output, 'desktop-material-list.png'), timeout: 3000}).catch(() => {}); await stop();
     await start(); await page.locator('[data-view="materials"]').click(); saved = await page.evaluate(() => materiaDesktop.getSetting('comparisonState')); assert.equal(saved.groups[0].name, '跨来源合金组'); assert.equal(saved.keys.length, 2);
     assert.equal(await page.locator('[data-material-list-choice]:checked').count(), 2); assert.deepEqual(await page.evaluate(() => materiaDesktop.getSetting('comparisonSelection')), []);
     const after = await page.evaluate(() => materiaDesktop.getPapers()); assert.deepEqual(after, before);
-    await page.locator('[data-material-list-action="clear"]').click(); await stop();
+    await materialAction('clear'); await stop();
     const disk = JSON.parse(await fs.readFile(path.join(library, 'library.json'), 'utf8')); assert.deepEqual(disk.settings.comparisonState.keys, []); assert.equal(disk.settings.comparisonState.groups[0].members.length, 2); assert.deepEqual(errors, []);
     await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({passed: true, executable, actualProcessRestart: true, groupsPersisted: true, tableAndChart: true, independentSelections: true, originalMaterialsAndPdfUntouched: true, isolatedLibrary: true, visibleWindow: false, errors}, null, 2)); console.log('PASS actual desktop material list, grouping, clearing, comparisons and process restart');
   } catch(error) {await fs.writeFile(path.join(output, 'failure.json'), JSON.stringify({error: error.stack, errors, logs}, null, 2)); await page?.screenshot({path: path.join(output, 'failure.png'), timeout: 3000}).catch(() => {}); throw error;

@@ -2,19 +2,15 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {cleanAgentKey,agentCredentialIssue,agentHTTPError,isGeminiCompatible,normalizeAgentModel} from '../dist/agent-auth.js';
+import {providerEndpoint} from '../dist/agent-providers.js';
+import {discoverAgentModels,agentHeaders} from './agent-models.mjs';
 
-export function normalizeAgentConfig(value = {}) {
-  let url;
-  try { url = new URL(String(value.baseUrl || 'https://api.openai.com/v1').trim()); } catch { throw new Error('请输入有效的 API 地址。'); }
-  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) || url.username || url.password || url.search || url.hash) throw new Error('API 地址需要 HTTPS；本机服务可用 HTTP。地址中不能包含密钥、查询参数或账号。');
-  const baseUrl = url.href.replace(/\/(?:chat\/completions|responses)\/?$/, '').replace(/\/$/, '');
-  const model = normalizeAgentModel(value.model,baseUrl);
-  if (!model || model.length > 200) throw new Error('请填写服务支持的模型名称。');
-  const protocol = value.protocol || 'chat';
-  if (!['chat', 'responses'].includes(protocol)) throw new Error('API 协议无效。');
-  const apiKey = cleanAgentKey(value.apiKey);
-  return { baseUrl, model, protocol, apiKey, rememberKey: Boolean(value.rememberKey) };
+export function normalizeAgentConfig(value = {}, {requireModel=true}={}) {
+  const {baseUrl,provider,protocol}=providerEndpoint(value);
+  const model=normalizeAgentModel(value.model,baseUrl);
+  if ((requireModel&&!model)||model.length>200) throw new Error('请填写服务支持的模型名称。');
+  if (!['chat','responses','anthropic'].includes(protocol)) throw new Error('API 协议无效。');
+  return {baseUrl,provider,model,protocol,apiKey:cleanAgentKey(value.apiKey),rememberKey:Boolean(value.rememberKey)};
 }
 
 // Kept in the desktop profile, outside library.json and library backups.
@@ -38,7 +34,7 @@ export class AgentSettings {
     const { apiKey, ...config } = this.config || { baseUrl: 'https://api.openai.com/v1', model: '', protocol: 'chat', apiKey: '', rememberKey: false };
     return { ...config, hasKey: Boolean(apiKey), canRememberKey: this.canRememberKey };
   }
-  resolve(value){const clean=normalizeAgentConfig(value);return{...clean,apiKey:value.clearKey?'':(clean.apiKey||(this.config?.baseUrl===clean.baseUrl?this.config.apiKey:''))};}
+  resolve(value,options){const clean=normalizeAgentConfig(value,options);return{...clean,apiKey:value.clearKey?'':(clean.apiKey||(this.config?.baseUrl===clean.baseUrl?this.config.apiKey:''))};}
   save(value) {
     const operation = this.queue.then(async () => {
       const next = this.resolve(value);
@@ -57,32 +53,38 @@ export class AgentSettings {
   }
 }
 
-// GET /models validates transport and credentials without submitting prompts or literature.
-export async function testAgentConnection(value,{signal}={},fetcher=fetch){
+export async function listAgentModels(value,options={},fetcher=fetch){
+  let config;try{config=normalizeAgentConfig(value,{requireModel:false});}catch(error){return{ok:false,stage:'configuration',message:error.message};}
+  return discoverAgentModels(config,options,fetcher);
+}
+// Connection diagnostics deliberately omit the model roster from their public result.
+export async function testAgentConnection(value,options={},fetcher=fetch){
   let config;try{config=normalizeAgentConfig(value);}catch(error){return{ok:false,stage:'configuration',message:error.message};}
-  const keyProvided=Boolean(config.apiKey),host=new URL(config.baseUrl).hostname,base={host,keyProvided,model:config.model};
-  const issue=agentCredentialIssue(config);if(issue)return{...base,ok:false,stage:'configuration',message:issue};
-  const abort=AbortSignal.any([...(signal?[signal]:[]),AbortSignal.timeout(15000)]);
-  let response;
-  try{response=await fetcher(config.baseUrl+'/models',{method:'GET',headers:{Accept:'application/json',...(keyProvided?{Authorization:`Bearer ${config.apiKey}`}:{})},signal:abort,redirect:'error'});}
-  catch{return{...base,ok:false,stage:'network',message:abort.aborted?'连接检测已停止或超时，请检查网络后重试。':'无法连接服务，请检查地址、网络或证书。'};}
-  if(!response.ok){await response.body?.cancel();return{...base,ok:false,stage:'http',httpStatus:response.status,message:agentHTTPError(response.status,keyProvided)};}
-  let data;
-  try{
-    const reader=response.body.getReader(),decoder=new TextDecoder();let size=0,raw='';
-    while(true){const{done,value}=await reader.read();if(done)break;size+=value.length;if(size>1024*1024){await reader.cancel();throw new Error('too large');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();data=JSON.parse(raw);
-  }catch{return{...base,ok:false,stage:'response',httpStatus:response.status,message:'模型列表未返回可识别的 JSON，请检查 API 地址；部分兼容服务不支持模型列表。'};}
-  if(!Array.isArray(data?.data))return{...base,ok:false,stage:'response',httpStatus:response.status,message:'模型列表格式无法识别，请检查地址或确认服务支持 GET /models。'};
-  const google=isGeminiCompatible(config.baseUrl),modelAvailable=data.data.some(row=>typeof row?.id==='string'&&normalizeAgentModel(row.id,config.baseUrl)===config.model);
-  // Only expose bounded Gemini model IDs, never arbitrary response text or reflected credentials.
-  const modelIds=google?[...new Set(data.data.map(row=>normalizeAgentModel(row?.id,config.baseUrl)).filter(id=>/^gemini-[a-z\d][a-z\d._-]{0,180}$/i.test(id)&&!id.includes(config.apiKey)))]:[];
-  const availableModels=modelIds.slice(0,40),suggestions=availableModels.slice(0,8);
-  const message=modelAvailable?'连接检测通过，服务接受了本次请求，当前模型在返回列表中。':google?`认证已通过，但返回的模型列表中未匹配当前模型。${suggestions.length?'服务返回的部分 Gemini 模型：'+suggestions.join('、')+'。请选择列表中的完整 ID，再测试并保存。':'本次没有返回可显示的 Gemini 模型 ID，请核对账号可用模型；此结果尚未验证生成能力。'}`:'服务接受了本次请求，但列表中没有当前模型，请核对模型名称。';
-  return{...base,ok:true,stage:'authenticated',httpStatus:response.status,modelAvailable,...(google?{availableModels,modelListTruncated:modelIds.length>availableModels.length}:{}),message};
+  const {models,...result}=await discoverAgentModels(config,options,fetcher);
+  if(!result.ok)return result;
+  const modelAvailable=models.some(row=>normalizeAgentModel(row.id,config.baseUrl)===config.model);
+  if(isGeminiCompatible(config.baseUrl)){const ids=models.map(row=>normalizeAgentModel(row.id,config.baseUrl)).filter(id=>/^gemini-[a-z\d][a-z\d._-]{0,180}$/i.test(id));const availableModels=ids.slice(0,40);return{...result,modelAvailable,availableModels,modelListTruncated:ids.length>40,message:modelAvailable?'连接检测通过，当前模型在返回列表中。':'认证已通过，当前模型未匹配。可用模型：'+availableModels.slice(0,8).join('、')};}
+  return {...result,modelAvailable,message:modelAvailable?'连接检测通过，服务接受了本次请求，当前模型在返回列表中。':'服务接受了本次请求，但列表中没有当前模型，请核对模型名称。'};
 }
 
 function providerBody(config, messages, tools) {
-  if (config.protocol === 'chat') return { model: config.model, messages: messages.map(({providerOutput,...message})=>message), ...(tools.length?{tools:tools.map(tool => ({ type: 'function', function: tool })),tool_choice:'auto'}:{}), stream: false };
+  if(config.protocol==='anthropic'){
+    const system=messages.filter(m=>m.role==='system').map(m=>m.content).filter(Boolean).join('\n'),input=[];
+    for(const message of messages){
+      if(message.role==='system')continue;
+      let role=message.role==='assistant'?'assistant':'user',content=[];
+      if(message.role==='tool')content=[{type:'tool_result',tool_use_id:message.tool_call_id,content:message.content||''}];
+      else if(role==='assistant'&&Array.isArray(message.providerOutput))content=message.providerOutput.filter(b=>['text','tool_use','thinking','redacted_thinking'].includes(b.type));
+      else{
+        if(message.content)content.push({type:'text',text:message.content});
+        for(const call of message.tool_calls||[]){let args;try{args=JSON.parse(call.function.arguments||'{}');}catch{throw new Error('工具参数格式无效，请重新提问。');}content.push({type:'tool_use',id:call.id,name:call.function.name,input:args});}
+      }
+      if(!content.length)continue;
+      if(input.at(-1)?.role===role)input.at(-1).content.push(...content);else input.push({role,content});
+    }
+    return{model:config.model,max_tokens:8192,system,messages:input,...(tools.length?{tools:tools.map(t=>({name:t.name,description:t.description,input_schema:t.parameters}))}:{}),stream:false};
+  }
+  if (config.protocol === 'chat') return { model: config.model, messages: messages.map(({providerOutput,...message})=>({...message,...(message.role==='assistant'&&providerOutput&&!Array.isArray(providerOutput)?Object.fromEntries(['reasoning_content','reasoning_details','extra_content'].filter(k=>providerOutput[k]!==undefined).map(k=>[k,providerOutput[k]])):{})})), ...(tools.length?{tools:tools.map(tool => ({ type: 'function', function: tool })),tool_choice:'auto'}:{}), stream: false };
   const input = [];
   for (const message of messages) {
     if (message.role === 'tool') input.push({ type: 'function_call_output', call_id: message.tool_call_id, output: message.content });
@@ -101,7 +103,7 @@ export async function completeWithProvider(configValue, { messages, tools = [], 
   const abort = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(90000)]);
   let response;
   try {
-    response = await fetcher(`${config.baseUrl}/${config.protocol === 'responses' ? 'responses' : 'chat/completions'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) }, body: JSON.stringify(providerBody(config, messages, tools)), signal: abort, redirect: 'error' });
+    response = await fetcher(`${config.baseUrl}/${config.protocol==='anthropic'?'messages':config.protocol === 'responses' ? 'responses' : 'chat/completions'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...agentHeaders(config) }, body: JSON.stringify(providerBody(config, messages, tools)), signal: abort, redirect: 'error' });
   } catch (error) {
     if (signal?.aborted) throw new DOMException('已停止生成。', 'AbortError');
     if (abort.aborted) throw new Error('AI 服务响应超时，请重试。');
@@ -115,10 +117,16 @@ export async function completeWithProvider(configValue, { messages, tools = [], 
   } catch (error) { if (signal?.aborted) throw new DOMException('已停止生成。','AbortError'); if (abort.aborted) throw new Error('AI 服务响应超时，请重试。'); throw error; }
   let data;
   try { data = JSON.parse(raw); } catch { throw new Error('AI 服务未返回 JSON，请检查 API 地址及协议。'); }
+  if(config.protocol==='anthropic'){
+    if(!Array.isArray(data.content)||['max_tokens','pause_turn'].includes(data.stop_reason)||data.error)throw new Error('Claude 返回不完整，请缩小问题范围或检查模型设置。');
+    return {content:data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n'),tool_calls:data.content.filter(b=>b.type==='tool_use').map(b=>({id:b.id,type:'function',function:{name:b.name,arguments:JSON.stringify(b.input)}})),providerOutput:data.content};
+  }
   if (config.protocol === 'chat') {
     const choice = data.choices?.[0];
     if (!choice?.message || choice.finish_reason === 'length') throw new Error('模型返回不完整，请缩小问题范围或更换模型。');
-    return choice.message;
+    const message=choice.message,providerOutput={};
+    for(const field of ['reasoning_content','reasoning_details','extra_content'])if(message[field]!==undefined)providerOutput[field]=message[field];
+    return {...message,...(Object.keys(providerOutput).length?{providerOutput}:{})};
   }
   if (!Array.isArray(data.output) || data.status === 'incomplete' || data.error) throw new Error('Responses API 返回不完整，请检查模型与服务支持。');
   return { content: data.output.filter(o => o.type === 'message').flatMap(o => o.content || []).filter(c => c.type === 'output_text').map(c => c.text).join('\n'), tool_calls: data.output.filter(o => o.type === 'function_call').map(o => ({ id: o.call_id, type: 'function', function: { name: o.name, arguments: o.arguments } })), providerOutput: data.output };

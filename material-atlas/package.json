@@ -1,6 +1,6 @@
 {
   "name": "materia-atlas",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",
@@ -30,7 +30,10 @@
     "verify:study": "node scripts/verify-study.cjs",
     "verify:study-desktop": "node scripts/verify-study-desktop.cjs",
     "verify:material-list": "node scripts/verify-material-list.cjs",
-    "verify:material-list-desktop": "node scripts/verify-material-list-desktop.cjs"
+    "verify:material-list-desktop": "node scripts/verify-material-list-desktop.cjs",
+    "verify:agent-providers": "node scripts/verify-agent-providers.cjs",
+    "verify:agent-providers-desktop": "node scripts/verify-agent-providers-desktop.cjs",
+    "deploy:local": "node scripts/deploy-local.mjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",

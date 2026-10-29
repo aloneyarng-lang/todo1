@@ -1,3 +1,4 @@
+import {providerRequiresKey} from './agent-providers.js';
 // Public auth state and safe messages only; never include credential values.
 export function cleanAgentKey(value){
   let key=String(value||'').trim();
@@ -21,7 +22,7 @@ export function agentCredentialIssue(config={}){
     if(!isGeminiCompatible(config.baseUrl))return 'Google Gemini 请填写官方 OpenAI 兼容地址：https://generativelanguage.googleapis.com/v1beta/openai。';
     if(config.protocol==='responses')return 'Google Gemini 官方兼容接口请使用 Chat Completions 协议，当前选择的 Responses 不能用于此配置。请修改协议后重新测试并保存。';
   }
-  const required=['api.openai.com','api.deepseek.com','generativelanguage.googleapis.com'].includes(host),hasKey=config.hasKey??Boolean(config.apiKey);
+  const required=providerRequiresKey(config)||host==='generativelanguage.googleapis.com',hasKey=config.hasKey??Boolean(config.apiKey);
   return required&&!hasKey?'当前未提供 API 密钥。请在「AI 研究助手 → 服务设置」重新填写并保存；未勾选系统加密记住密钥时，重启后需要重新填写。':'';
 }
 export function agentHTTPError(status,hasKey){

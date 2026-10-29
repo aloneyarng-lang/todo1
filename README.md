@@ -1,6 +1,6 @@
-# Materia 2.0
+# Materia 2.0.1
 
-双击本文件夹中的「Materia.exe - 快捷方式」启动；更新后请完全退出并重开。
+双击本文件夹中的「启动 Materia.cmd」启动；更新后请完全退出并重开。现有本地快捷方式会在部署时更新。
 
 - 主题整理为澄璃、北航蓝、纸白、学术紫、暖砂、博丽灵梦、命运石之门 7 款，每款支持浅色和深色，统一使用透明玻璃、圆角与按压回弹。
 - 主界面支持未读 ⚪、在读 🟡、精读 🟢、归档 🟣 四种阅读状态，支持快速筛选和批量设置，与文件夹分组独立。
@@ -12,3 +12,9 @@
 旧默认文献库 `material-atlas/release/Materia-win32-x64/文献库` 保留为迁移备份。自定义选择的其他文献库不强制搬迁。
 
 主题制作规范与校验入口：`material-atlas/theme-examples/DESIGN_RULES.md`、`AGENTS.md` 和 `scripts/validate-theme-design.mjs`。源码与完整说明位于 material-atlas。
+
+## 2.0.1 本地程序更新修补
+
+在 material-atlas 目录运行 `npm run deploy:local`，从当前源码构建并更新到工作区的 `Materia-win32-x64`，保留程序文件备份和文献配置。关闭旧程序后再执行，完成后使用工作区「Materia 最新版」快捷方式。源码更新不等于正在运行的 EXE 已更新。
+
+整合厂商列表与自动模型发现，保留 Gemini 校验、Claude 原生协议、自定义配置以及已安装苹方的 Codex 主题。

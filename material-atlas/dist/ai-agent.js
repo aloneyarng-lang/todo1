@@ -3,7 +3,9 @@ import {actionMenu} from './action-menus.js';
 import { runResearchAgent } from './ai-agent-core.js';
 import { renderChatMarkdown } from './agent-markdown.js';
 import { cleanAgentHistory, emptyAgentHistory, chatTitle } from './agent-history.js';
-import {cleanAgentKey,agentCredentialIssue} from './agent-auth.js';
+import {agentCredentialIssue} from './agent-auth.js';
+import {createAgentServiceSettings} from './agent-service-settings.js';
+import {canonicalAgentUrl} from './agent-providers.js';
 
 const labels = { library_overview: '正在查看文献目录…', search_library: '正在检索相关文献…', read_papers: '正在阅读笔记与参数…', compare_parameters: '正在整理性能观测…' };
 export function createAgentController(options) {
@@ -17,13 +19,17 @@ export function createAgentController(options) {
   panel.innerHTML = `<header class="agent-header"><div><small>MATERIA AGENT</small><h2>${icon('assistant')}AI 研究助手</h2></div><button type="button" class="icon-button" data-agent-action="close" aria-label="关闭 AI 研究助手" title="关闭 AI 研究助手">${icon('close')}</button></header>
     <div class="agent-toolbar"><label>文献范围<select id="agent-scope"><option value="all">整个文献库</option><option value="selected">当前选中文献</option></select></label><button type="button" class="text-button" data-agent-action="new">新对话</button>${actionMenu('agent-conversation-menu','对话操作','<button type="button" data-agent-action="history" aria-expanded="false" aria-controls="agent-history">'+icon('clock')+'<span data-agent-history-label>历史记录</span></button><button type="button" data-agent-action="settings">'+icon('settings')+'服务设置</button>',{iconOnly:true,className:'icon-button'})}</div>
     <div class="agent-chatbar"><span id="agent-chat-title">新对话</span></div>
-    <details id="agent-settings" class="agent-settings"><summary>配置 AI 服务</summary><form id="agent-config-form">
-      <label>API 地址<input id="agent-base-url" type="url" placeholder="https://api.example.com/v1" required autocomplete="off"></label>
-      <div class="agent-config-row"><label>模型名称<input id="agent-model" list="agent-model-options" placeholder="填写服务提供的模型 ID" maxlength="200" required autocomplete="off"><datalist id="agent-model-options"></datalist></label><label>API 协议<select id="agent-protocol"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select></label></div>
-      <label>API 密钥<input id="agent-key" type="password" placeholder="可留空用于无需密钥的本机服务" maxlength="4096" autocomplete="off" spellcheck="false"></label>
+    <details id="agent-settings" class="agent-settings"><summary>配置 AI 服务</summary><form id="agent-config-form"><div class="agent-config-fields">
+      <label>AI 服务厂商<select id="agent-provider" aria-describedby="agent-provider-hint"></select></label>
+      <p id="agent-provider-hint" class="agent-help"></p>
+      <div id="agent-custom-settings"><label>API 地址<input id="agent-base-url" type="url" placeholder="https://api.example.com/v1" autocomplete="off"></label><label>API 协议<select id="agent-protocol"><option value="chat">Chat Completions</option><option value="responses">Responses</option><option value="anthropic">Claude Messages</option></select></label></div>
+      <label>API 密钥<input id="agent-key" type="password" placeholder="填写所选厂商的 API Key" maxlength="4096" autocomplete="off" spellcheck="false"></label>
+      <label id="agent-model-picker-field">可用模型<select id="agent-model-select" aria-describedby="agent-connection-status"></select></label>
+      <label class="agent-remember"><input id="agent-model-manual" type="checkbox">手动填写模型 ID</label>
+      <label id="agent-manual-model-field">模型名称<input id="agent-model" placeholder="填写服务提供的模型 ID" maxlength="200" autocomplete="off"></label>
       <label class="agent-remember"><input id="agent-remember" type="checkbox">用系统加密记住密钥（仅桌面版）</label>
-      <p class="agent-help">研究对话需工具调用，翻译无需；Google Gemini 官方兼容接口请选择 Chat Completions，部分 OpenAI 模型需选择 Responses。测试 Gemini 连接后，可从模型输入框选择返回的模型 ID。本机服务可使用 http://localhost 地址。密钥不写入文献库或备份。</p>
-      <div class="agent-config-actions"><button type="button" class="text-button" data-agent-action="forget">清除密钥</button><button class="primary" type="submit">保存设置</button></div>
+      <p class="agent-help">研究对话需模型支持工具调用，翻译无需。自动获取仅查询模型列表，不产生对话。本机服务可使用 http://localhost 地址。密钥不写入文献库或备份。</p>
+      </div><div class="agent-config-actions"><button type="button" class="text-button" data-agent-action="forget">清除密钥</button><button class="primary" type="submit">保存设置</button></div>
     </form></details>
     <p id="agent-data-notice" class="agent-data-notice"></p>
     <section id="agent-history" class="agent-history" aria-label="历史聊天记录" hidden><div class="agent-history-heading"><strong>历史聊天记录</strong><button type="button" class="text-button" data-agent-action="back">返回对话</button></div><input id="agent-history-search" type="search" placeholder="搜索标题或聊天内容" aria-label="搜索聊天历史"><div id="agent-history-list" class="agent-history-list"></div></section>
@@ -32,14 +38,13 @@ export function createAgentController(options) {
     <form id="agent-question-form" class="agent-composer"><label class="sr-only" for="agent-question">向研究助手提问</label><textarea id="agent-question" maxlength="8000" rows="3" placeholder="查找文献、梳理笔记、比较性能参数…" required></textarea><div><small id="agent-range-label"></small><button type="button" class="outline-button" data-agent-action="stop" hidden>停止</button><button class="primary" id="agent-send" type="submit">发送</button></div></form>`;
   document.body.append(panel);
   const $ = selector => panel.querySelector(selector);
-  $('.agent-config-actions').insertAdjacentHTML('afterbegin','<button type="button" class="outline-button" data-agent-action="test-connection">测试连接</button>');
-  const connectionStatus=document.createElement('p');connectionStatus.id='agent-connection-status';connectionStatus.className='agent-help';connectionStatus.setAttribute('role','status');$('#agent-config-form').append(connectionStatus);
+  $('.agent-config-actions').insertAdjacentHTML('afterbegin','<button type="button" class="outline-button" data-agent-action="test-connection">刷新模型</button>');
+  const connectionStatus=document.createElement('p');connectionStatus.id='agent-connection-status';connectionStatus.className='agent-help';connectionStatus.setAttribute('role','status');$('.agent-config-actions').before(connectionStatus);
   const status = message => { $('#agent-status').textContent = message; };
   let config = { baseUrl: 'https://api.openai.com/v1', model: '', protocol: 'chat', hasKey: false, canRememberKey: false, rememberKey: false };
   let browserKey = '', entries = [], busy = false, controller, requestId = '', generation = 0, initialized = false, returnFocus, contextIdentity = '';
   let chats=emptyAgentHistory(),historyReady=false,historyKey='',saveQueue=Promise.resolve(),libraryEpoch=0;
-  let connectionBusy=false;
-  $('#agent-base-url').addEventListener('input',()=>{$('#agent-model-options').replaceChildren();connectionStatus.textContent='';});
+  const serviceSettings=createAgentServiceSettings(panel,{getConfig:()=>config,getBrowserKey:()=>browserKey,native:desktop?native:null,isBusy:()=>busy});
   const sources = new Map();
   const activeChat = () => chats.conversations.find(chat=>chat.id===chats.activeId);
   const scopeIds = () => $('#agent-scope').value === 'selected' ? (activeChat()?.scopeIds || [...new Set(options.getSelectedIds())]) : null;
@@ -93,6 +98,7 @@ export function createAgentController(options) {
     $('[data-agent-action="history"]').disabled=value;
     $('[data-agent-action="stop"]').hidden = !value;
     $('#agent-settings').querySelectorAll('input,select,button').forEach(el => { el.disabled = value || (el.id === 'agent-remember' && !config.canRememberKey); });
+    serviceSettings.sync();
   }
   function render() {
     chatbar();
@@ -126,8 +132,9 @@ export function createAgentController(options) {
     $('#agent-remember').checked=config.rememberKey; $('#agent-remember').disabled=!config.canRememberKey;
     let keyStatus=$('#agent-key-status');if(!keyStatus){keyStatus=document.createElement('p');keyStatus.id='agent-key-status';keyStatus.className='agent-help';keyStatus.setAttribute('role','status');$('#agent-key').closest('label').after(keyStatus);}
     keyStatus.textContent=config.hasKey?(config.rememberKey?'密钥已载入，使用系统加密保存。':'密钥仅在本次运行有效，重启后需重新填写。'):'当前未载入密钥；已有的地址和模型设置不会代替密钥。';
-    notice();
+    serviceSettings.fill();notice();
   }
+  const modelField=()=>$('#agent-model-manual').checked?$('#agent-model'):$('#agent-model-select');
   async function open() {
     returnFocus=document.activeElement; panel.hidden=false;
     document.querySelectorAll('[data-action="ai-agent"]').forEach(b => {b.setAttribute('aria-expanded','true');b.classList.add('active');});
@@ -137,7 +144,7 @@ export function createAgentController(options) {
         await loadHistory();initialized=true;fillConfig();const issue=agentCredentialIssue(config);$('#agent-settings').open=Boolean(issue);if(issue)status(issue);
       } catch {status('AI 设置或聊天历史无法读取，原记录已保留。请检查文献库或重新打开助手。');}
     }
-    notice(); (agentCredentialIssue(config)?(config.model?$('#agent-key'):$('#agent-model')):$('#agent-question')).focus();
+    notice(); (agentCredentialIssue(config)?(config.model?$('#agent-key'):modelField()):$('#agent-question')).focus();
   }
   function close() {
     panel.hidden=true; document.querySelectorAll('[data-action="ai-agent"]').forEach(b=>{b.setAttribute('aria-expanded','false');b.classList.remove('active');}); returnFocus?.focus();
@@ -156,44 +163,24 @@ export function createAgentController(options) {
     chats.activeId=id;entries=chat.entries;contextIdentity=JSON.stringify(chat.scopeIds);$('#agent-scope').value=chat.scopeIds===null?'all':'selected';showHistory(false);render();notice();await persistHistory();status('已恢复历史聊天，可以继续提问。');$('#agent-question').focus();
   }
   async function saveConfig(clearKey=false) {
-    const value={baseUrl:$('#agent-base-url').value.trim().replace(/\/$/,''),model:$('#agent-model').value.trim(),protocol:$('#agent-protocol').value,apiKey:cleanAgentKey($('#agent-key').value),rememberKey:$('#agent-remember').checked,clearKey};
-    let url; try {url=new URL(value.baseUrl);} catch {throw new Error('请输入有效的 API 地址。');}
-    if (!value.model) throw new Error('请填写模型名称。');
-    if ((url.protocol!=='https:' && !(url.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname))) || url.username || url.password || url.search || url.hash) throw new Error('API 地址需要 HTTPS；本机服务可使用 HTTP。地址中不能包含账号或查询参数。');
-    value.baseUrl=url.href.replace(/\/(?:chat\/completions|responses)\/?$/,'').replace(/\/$/,'');
+    const value={...serviceSettings.draft(),clearKey};
+    if (!value.model) throw new Error('请选择模型，或勾选“手动填写模型 ID”。');
+    value.baseUrl=canonicalAgentUrl(value.baseUrl);
     if (desktop) config=await native.agentSaveConfig(value);
     else {
       const nextKey=clearKey?'':(value.apiKey || (config.baseUrl===value.baseUrl?browserKey:''));
-      const prefs={baseUrl:value.baseUrl,model:value.model,protocol:value.protocol};
+      const prefs={provider:value.provider,baseUrl:value.baseUrl,model:value.model,protocol:value.protocol};
       await options.setSetting('agentPreferences',prefs); browserKey=nextKey;
       config={...prefs,hasKey:Boolean(browserKey),canRememberKey:false,rememberKey:false};
     }
     await reset(); fillConfig();const issue=agentCredentialIssue(config);$('#agent-settings').open=Boolean(issue);status(clearKey?'密钥已清除。':issue||'设置已保存，可以开始提问。');
   }
-  async function testConnection(){
-    if(connectionBusy)return;connectionBusy=true;const button=$('[data-agent-action="test-connection"]');button.disabled=true;connectionStatus.textContent='正在查询模型列表；不发送问题或文献，不生成内容，也不保存此处修改…';
-    try{
-      const value={baseUrl:$('#agent-base-url').value.trim(),model:$('#agent-model').value.trim(),protocol:$('#agent-protocol').value,apiKey:cleanAgentKey($('#agent-key').value),rememberKey:false};
-      let result;
-      if(desktop){if(!native.agentTestConnection)throw new Error('当前运行的程序尚不支持连接检测，请关闭旧版并启动 v1.4.2 或更新版本。');result=await native.agentTestConnection(value);}
-      else{
-        let canonical=value.baseUrl;try{canonical=new URL(canonical).href.replace(/\/(?:chat\/completions|responses)\/?$/,'').replace(/\/$/,'');}catch{}
-        value.apiKey=value.apiKey||(canonical===config.baseUrl?browserKey:'');
-        const response=await fetch('/api/ai-agent/test',{method:'POST',headers:{'Content-Type':'application/json','X-Materia-Agent':'1'},body:JSON.stringify({config:value})});
-        try{result=await response.json();}catch{throw new Error('当前预览服务不支持连接检测，请重新启动新版预览服务。');}if(!response.ok)throw new Error(result.error||'连接检测失败。');
-      }
-      const choices=(Array.isArray(result.availableModels)?result.availableModels:[]).slice(0,40).filter(id=>typeof id==='string'&&/^gemini-[a-z\d][a-z\d._-]{0,180}$/i.test(id));
-      $('#agent-model-options').replaceChildren(...choices.map(id=>{const option=document.createElement('option');option.value=id;return option;}));
-      const details=[config.appVersion?`版本：${config.appVersion}`:'',result.host?`服务：${result.host}`:'',result.model?`模型：${result.model}`:'',result.keyProvided!==undefined?(result.stage==='configuration'?`${result.keyProvided?'已填写':'未填写'}密钥，尚未发送请求`:`本次请求${result.keyProvided?'已附带':'未附带'}密钥`):'',result.httpStatus?`HTTP ${result.httpStatus}`:''].filter(Boolean).join(' · ');
-      connectionStatus.textContent=[result.message,details,'检测不会保存修改，验证后请点击“保存设置”。'].filter(Boolean).join('\n');
-    }catch(error){connectionStatus.textContent=error.message||'连接检测失败，请重试。';}
-    finally{connectionBusy=false;button.disabled=false;}
-  }
+  async function testConnection(){return serviceSettings.refresh();}
   async function ask() {
     if(busy) return;
     if(!historyReady){status('请先重新打开助手读取聊天历史，避免覆盖已有记录。');return;}
     const question=$('#agent-question').value.trim(); if(!question) return;
-    const credentialIssue=agentCredentialIssue(config);if(credentialIssue){$('#agent-settings').open=true;status(credentialIssue);(config.model?$('#agent-key'):$('#agent-model')).focus();return;}
+    const credentialIssue=agentCredentialIssue(config);if(credentialIssue){$('#agent-settings').open=true;status(credentialIssue);(config.model?$('#agent-key'):modelField()).focus();return;}
     const ids=scopeIds(); if(ids && !ids.length){status('请先在文献列表勾选文献，或打开一篇文献，再使用当前选中范围。');return;}
     if (!options.isReady()) {status('文献库尚未就绪，请稍后重试。');return;}
     const currentIdentity=identity(); if(contextIdentity && contextIdentity!==currentIdentity) await reset();
@@ -208,7 +195,7 @@ export function createAgentController(options) {
       let result;
       if(desktop){unsubscribe=native.onAgentProgress(p=>{if(p.id===requestId)progress(p);});result=await native.agentRun({id:requestId,question,history:prior,scopeIds:ids});if(result.error)throw new Error(result.error);}
       else {
-        const signal=controller.signal, provider={baseUrl:config.baseUrl,model:config.model,protocol:config.protocol,apiKey:browserKey};
+        const signal=controller.signal, provider={provider:config.provider,baseUrl:config.baseUrl,model:config.model,protocol:config.protocol,apiKey:browserKey};
         result=await runResearchAgent({question,history:prior,context:{papers:structuredClone(options.getPapers()),notes:structuredClone(options.getNotes()),scopeIds:ids},signal,onProgress:progress,complete:async input=>{
           const response=await fetch('/api/ai-agent/complete',{method:'POST',headers:{'Content-Type':'application/json','X-Materia-Agent':'1'},body:JSON.stringify({config:provider,messages:input.messages}),signal:input.signal});
           let data;try{data=await response.json();}catch{throw new Error('预览服务不支持 AI 请求，请使用 npm run preview 启动本项目。');}
@@ -268,10 +255,10 @@ export function createAgentController(options) {
       try{const result=await native.translateText({id,request});signal?.throwIfAborted();if(result.error)throw new Error(result.error);return result;}
       finally{signal?.removeEventListener('abort',cancel);}
     }
-    const response=await fetch('/api/translation',{method:'POST',headers:{'Content-Type':'application/json','X-Materia-Agent':'1'},body:JSON.stringify({config:{baseUrl:config.baseUrl,model:config.model,protocol:config.protocol,apiKey:browserKey},request}),signal});
+    const response=await fetch('/api/translation',{method:'POST',headers:{'Content-Type':'application/json','X-Materia-Agent':'1'},body:JSON.stringify({config:{provider:config.provider,baseUrl:config.baseUrl,model:config.model,protocol:config.protocol,apiKey:browserKey},request}),signal});
     let result;try{result=await response.json();}catch{throw new Error('翻译服务不可用，请使用新版 Materia 或本项目的预览服务。');}
     if(!response.ok)throw new Error(result.error||'翻译失败，请重试。');return result;
   }
-  async function openSettings(){await open();$('#agent-settings').open=true;(config.model&&!config.hasKey?$('#agent-key'):$('#agent-model')).focus();}
+  async function openSettings(){await open();$('#agent-settings').open=true;(config.model&&!config.hasKey?$('#agent-key'):modelField()).focus();}
   return {open,close,reset,changeLibrary,serviceStatus,translate,openSettings,isBusy:()=>busy};
 }

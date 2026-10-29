@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('materiaDesktop', {
   studyUpdate: payload => ipcRenderer.invoke('study:update',payload),
   agentGetConfig: () => ipcRenderer.invoke('agent:get-config'),
   agentSaveConfig: value => ipcRenderer.invoke('agent:save-config', value),
+  agentListModels: value => ipcRenderer.invoke('agent:list-models',value),
+  agentCancelModels: () => ipcRenderer.invoke('agent:cancel-models'),
   agentTestConnection: value => ipcRenderer.invoke('agent:test-connection',value),
   agentRun: payload => ipcRenderer.invoke('agent:run', payload),
   agentCancel: id => ipcRenderer.invoke('agent:cancel', id),

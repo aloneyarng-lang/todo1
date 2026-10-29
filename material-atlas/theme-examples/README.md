@@ -16,3 +16,6 @@
 完整格式与字段范围见程序旁的 `THEMES.md` 与 `GRAPH_THEME_API.md`。此示例的字体包含西文与数字；中文由微软雅黑等后备字体显示。
 
 - [命运石之门 · 世界线](steins-gate/README.md)：内置双模式玻璃主题，仪表管与分支交汇 SVG，附可独立导入的完整包。
+
+- `codex.mtheme.json`：苹方简体 Codex 雾白工作台，浅色／深色双模式与统一玻璃界面。
+- `codex-source-han.mtheme.json`：保留的思源黑体版本。

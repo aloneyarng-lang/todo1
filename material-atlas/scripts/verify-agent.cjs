@@ -42,7 +42,7 @@ async function main(){
     await s.setSetting('notes',{'paper:p1':[{id:'n1',body:'用于研究助手界面测试的合成笔记',createdAt:1,updatedAt:1}]});
   });await page.reload();await page.locator('.import-main:not([disabled])').waitFor({state:'attached'});
   await check('ribbon entry opens a usable settings panel',async()=>{
-    await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();await page.locator('#agent-model').waitFor();
+    await page.locator('.workspace-ribbon [data-action="ai-agent"]').click();await page.locator('#agent-provider').selectOption('custom');await page.locator('#agent-model').waitFor();
     assert.equal(await page.locator('#agent-remember').isDisabled(),true);
     await page.locator('#agent-base-url').fill(mockUrl+'/v1');await page.locator('#agent-model').fill('mock-model');await page.locator('#agent-key').fill('synthetic-test-key');await page.locator('#agent-config-form button[type="submit"]').click();
     await page.locator('#agent-status').filter({hasText:'设置已保存'}).waitFor();assert.equal(await page.locator('#agent-key').inputValue(),'');

@@ -32,3 +32,11 @@ backups/
 
 # Apple font binaries are local to the private desktop copy
 dist/fonts/apple/
+
+# Machine-specific shortcuts and generated theme previews
+*.lnk
+**/theme-examples/*preview.png
+**/theme-examples/*comparison.png
+
+# Unused early font-source copies; v2 themes reference app fonts
+/theme-examples/codex-source/fonts/

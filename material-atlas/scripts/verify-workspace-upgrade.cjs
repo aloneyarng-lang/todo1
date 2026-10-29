@@ -11,7 +11,7 @@ async function settings(){await page.locator('[data-menu-toggle="workspace-menu"
 async function start(){
   const env={...process.env,MATERIA_HEADLESS:'1',MATERIA_PROFILE_DIR:profile,MATERIA_LIBRARY_DIR:library};delete env.ELECTRON_RUN_AS_NODE;
   await fs.unlink(path.join(profile,'DevToolsActivePort')).catch(e=>{if(e.code!=='ENOENT')throw e;});
-  const exe=packaged?path.join(root,'release/v1.3.0/Materia-win32-x64/Materia.exe'):path.join(root,'node_modules/electron/dist/electron.exe');
+  const exe=packaged?(process.env.MATERIA_RELEASE_EXE||path.join(root,'release/v'+require(path.join(root,'package.json')).version+'/Materia-win32-x64/Materia.exe')):path.join(root,'node_modules/electron/dist/electron.exe');
   child=spawn(exe,[...(packaged?[]:[root]),'--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--disable-gpu','--disable-renderer-backgrounding','--disable-backgrounding-occluded-windows'],{env,windowsHide:true,stdio:'ignore'});
   let port;for(let i=0;i<150;i++){try{port=Number((await fs.readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);if(port)break;}catch{}if(child.exitCode!==null)throw Error('Test app exited '+child.exitCode);await new Promise(r=>setTimeout(r,100));}
   assert.ok(port,'debug port');browser=await chromium.connectOverCDP('http://127.0.0.1:'+port);page=browser.contexts()[0].pages()[0];page.on('pageerror',error=>errors.push(error.message));
@@ -27,7 +27,7 @@ async function stop(){await browser?.close();browser=null;if(child?.exitCode===n
   await lib.setSetting('notes',{'paper:fixture-0':[{id:'n1',body:'Keep this original note',createdAt:1,updatedAt:1}]});
   const history=lib.getSetting('importActivity');for(let i=0;i<180;i++){const date=dayKey(Date.now()-i*86400000);if(i%4!==0)history.days[date]=i%13+1;}await lib.save(lib.data);
   await lib.setSetting('themePreferences',{selected:'buaa-blue'});await start();
-  await check('curated themes share glass appearances with real SF fonts and no glass switch',async()=>{
+  await check('curated themes share glass appearances with loaded built-in fonts or explicit portable fallbacks and no glass switch',async()=>{
     await themes();assert.equal(await page.locator('.theme-card').count(),7);assert.equal(await page.locator('[data-liquid-glass-toggle]').count(),0);
     for(const id of quick?['buaa-blue']:['liquid-glass','buaa-blue','paper','academic-purple','sand','reimu-day']){
       await page.locator('[data-theme-id="'+id+'"]').click();
@@ -35,8 +35,8 @@ async function stop(){await browser?.close();browser=null;if(child?.exitCode===n
         const style=await page.locator('.library-surface').evaluate(e=>({radius:getComputedStyle(e).borderRadius,filter:getComputedStyle(e).backdropFilter,glass:document.documentElement.dataset.liquidGlass}));assert.equal(style.glass,'true');assert.match(style.filter,/blur/);assert.ok(parseFloat(style.radius)>=16);
       }
     }
-    await page.locator('[data-theme-id="buaa-blue"]').click();await page.locator('button[data-theme-mode-choice="light"]').click();await waitFor(()=>document.documentElement.dataset.themeFonts==='loaded');
-    assert.ok(await page.evaluate(async()=>!!(await document.fonts.load('400 13px "Materia SF Pro"')).length));await capture('01-themes-light.png');await closeModal();
+    await page.locator('[data-theme-id="buaa-blue"]').click();await page.locator('button[data-theme-mode-choice="light"]').click();await waitFor(()=>['loaded','fallback'].includes(document.documentElement.dataset.themeFonts));
+    assert.ok(await page.evaluate(async()=>!!(await document.fonts.load('400 13px "Materia Inter"')).length&&!!(await document.fonts.load('400 13px "Materia Source Han Sans"')).length));await capture('01-themes-light.png');await closeModal();
   });
   await check('list and graph context menus expose group, notes, parameters and filesystem actions',async()=>{
     await page.locator('[data-view="list"]').click();const row=page.locator('[data-select="fixture-0"]');await row.click({button:'right'});await page.locator('[data-paper-command="collections"]').click();assert.equal(await page.locator('[data-paper-command="folder"]').count(),2);await page.keyboard.press('Escape');

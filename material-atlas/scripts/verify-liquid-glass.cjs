@@ -34,7 +34,7 @@ async function stop(){
 async function start(){
   await fs.unlink(path.join(profile,'DevToolsActivePort')).catch(e=>{if(e.code!=='ENOENT')throw e;});
   const env={...process.env,MATERIA_HEADLESS:'1',MATERIA_PROFILE_DIR:profile,MATERIA_LIBRARY_DIR:library};delete env.ELECTRON_RUN_AS_NODE;
-  child=spawn(path.join(root,'release/v1.3.0/Materia-win32-x64/Materia.exe'),['--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--disable-gpu','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling'],{env,windowsHide:true,stdio:['ignore','ignore','pipe']});
+  child=spawn((process.env.MATERIA_RELEASE_EXE||path.join(root,'release/v'+require(path.join(root,'package.json')).version+'/Materia-win32-x64/Materia.exe')),['--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--disable-gpu','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling'],{env,windowsHide:true,stdio:['ignore','ignore','pipe']});
   child.stderr.on('data',b=>log+=b.toString());let port;
   for(let i=0;i<150;i++){
     try{port=Number((await fs.readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);if(port)break;}catch{}

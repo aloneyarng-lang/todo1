@@ -350,7 +350,7 @@ async function settingsModal() {
     ${native?`<div class="settings-card folder-card"><div><strong>文献库</strong><p class="folder-path">${escape(state.desktopInfo?.path||'')}</p><small>${state.papers.length} 篇 · ${bytesLabel(size)}</small></div><div class="settings-inline-actions"><button class="outline-button" data-action="open-folder">打开</button>${actionMenu('storage-options','文献库选项','<button data-action="choose-folder">切换文献库…</button><button data-action="sync-folders">立即同步文件夹</button>',{iconOnly:true,className:'icon-button'})}</div></div>`:'<div class="info-box">网页预览 · 数据保存在当前浏览器</div>'}
     <div class="settings-card"><div><strong>文献信息</strong><p>补充信息与期刊指标</p></div>${actionMenu('metadata-options','管理','<button data-action="import-metadata">导入文献信息…</button><button data-action="journal-catalog">期刊影响因子…</button>',{iconName:'folder'})}</div>
     <div class="settings-card"><div><strong>备份与恢复</strong><p>PDF、笔记、分组与导入记录</p></div>${actionMenu('backup-options','备份','<button data-action="export">导出完整备份…</button><button data-action="restore">从备份恢复…</button>',{iconName:'download'})}</div>
-    <section id="settings-import-activity" class="settings-activity" aria-label="每日导入记录">${activityHTML(settingsActivity)}</section><div class="modal-footer"><button class="primary" data-action="close-modal">完成</button></div>`,'settings');
+    <p class="muted" id="settings-app-version">Materia ${escape(state.desktopInfo?.appVersion||'网页预览')}</p><section id="settings-import-activity" class="settings-activity" aria-label="每日导入记录">${activityHTML(settingsActivity)}</section><div class="modal-footer"><button class="primary" data-action="close-modal">完成</button></div>`,'settings');
 }
 
 function journalCatalogModal() {

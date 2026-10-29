@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareLibraryLocation,portableLibraryRoot } from './library-location.mjs';
 import { LocalLibrary } from './library.mjs';
-import { AgentSettings, completeWithProvider,testAgentConnection } from './agent.mjs';
+import { AgentSettings, completeWithProvider,testAgentConnection,listAgentModels } from './agent.mjs';
 import { runResearchAgent } from '../dist/ai-agent-core.js';
 import { AgentHistoryFile } from './agent-history.mjs';
 import { translateText } from './translation.mjs';
@@ -17,9 +17,9 @@ app.setPath('userData', profile);
 let mainWindow, library, agentHistory, canvasStore;
 function observeLibrary(store){store.onFolderChange=result=>{if(store===library&&mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('library:changed',{path:store.root,...result});};return store;}
 let canvasCloseReady=false,canvasAllowClose=false;
-let agentRun = null,connectionTest=null;
+let agentRun = null,connectionTest=null,modelDiscovery=null;
 const translationRuns=new Map();
-function cancelTranslations(){for(const controller of translationRuns.values())controller.abort();connectionTest?.abort();}
+function cancelTranslations(){for(const controller of translationRuns.values())controller.abort();connectionTest?.abort();modelDiscovery?.abort();}
 const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
 else {
@@ -76,7 +76,7 @@ async function start() {
   handle('library:set-setting', (key, value) => library.setSetting(key, value));
   handle('library:merge-backup', backup => library.mergeBackup(backup));
   handle('library:read-pdf', id => library.readPdf(id));
-  handle('library:info', () => library.info());
+  handle('library:info', async () => ({...await library.info(),appVersion:app.getVersion()}));
   handle('library:sync-folders',()=>library.syncFolders());
   handle('library:open-paper-folder',async id=>{const file=await library.pdfPath(id);shell.showItemInFolder(file);});
   handle('library:open-group-folder',async id=>{const relative=library.data.settings.folderSync?.paths?.[id];if(!relative)throw Error('分组不存在。');const folder=path.resolve(library.root,'papers',relative);if(!folder.startsWith(path.resolve(library.root,'papers')+path.sep))throw Error('分组路径无效。');const result=await shell.openPath(folder);if(result)throw Error(result);});
@@ -110,6 +110,12 @@ async function start() {
     if(connectionTest)throw new Error('正在检测连接，请稍候。');const controller=new AbortController();connectionTest=controller;
     try{await agentSettings.queue;return await testAgentConnection(value?agentSettings.resolve(value):agentSettings.config||{},{signal:controller.signal});}
     finally{if(connectionTest===controller)connectionTest=null;}
+  });
+  handle('agent:cancel-models',()=>modelDiscovery?.abort());
+  handle('agent:list-models',async value=>{
+    modelDiscovery?.abort();const controller=new AbortController();modelDiscovery=controller;
+    try{await agentSettings.queue;return await listAgentModels(agentSettings.resolve(value||{},{requireModel:false}),{signal:controller.signal});}
+    finally{if(modelDiscovery===controller)modelDiscovery=null;}
   });
   handle('agent:cancel', id => { if (agentRun?.id === id) agentRun.controller.abort(); });
   handle('agent:run', async payload => {

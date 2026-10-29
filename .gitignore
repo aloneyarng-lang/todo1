@@ -47,3 +47,8 @@ backups/
 
 # Apple font binaries in this user's private local build
 **/dist/fonts/apple/
+
+# Machine-specific shortcuts and generated theme previews
+*.lnk
+**/theme-examples/*preview.png
+**/theme-examples/*comparison.png
