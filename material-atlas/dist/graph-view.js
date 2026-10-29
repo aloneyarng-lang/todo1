@@ -1,5 +1,6 @@
 import {GRAPH_THEME_TOKENS,graphAppearance,nodeGeometry,edgeGeometry} from './graph-appearance.js';
 import {CosmicBackdrop,cosmicNodeParts,cosmicPartNode} from './graph-cosmos.js';
+import {getGraphSymbols,graphSymbolNode,SymbolBackdrop} from './graph-symbols.js';
 import { createNetwork, stepNetwork, networkSnapshot, cleanLayout } from './force-layout.js';
 import { GRAPH_DEFAULTS, cleanGraphSettings, placeNodeLabels,fitGraphViewport } from './graph-settings.js';
 import { PALETTE } from './palette.js';
@@ -18,9 +19,9 @@ export class StarMap {
     Object.assign(this, callbacks);
     this.svg = svg; this.scale = 1; this.x = 0; this.y = 0;this.viewHeight=620;this.labelPositions=new Map();
     this.cache = {}; this.nodes = []; this.selected = ''; this.paused = false; this.preferences={...GRAPH_DEFAULTS};this.collections=[];this.cosmos=new CosmicBackdrop(svg);
-    this.bindInput();
+    this.symbolBackdrop=new SymbolBackdrop(svg);this.bindInput();
     this.labelCanvas=document.createElement('canvas').getContext('2d');this.labelWidths=new Map();
-    this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.cosmos.resize(height);this.transform();});this.resizeObserver.observe(svg);
+    this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.cosmos.resize(height);this.symbolBackdrop.resize(height);this.transform();});this.resizeObserver.observe(svg);
   }
   configure(value,collections=[],associations=[]){this.preferences=cleanGraphSettings(value);this.collections=collections;this.associations=associations;}
   setLayout(value) { cancelAnimationFrame(this.frame); this.network = null; const normalized=cleanLayout(value),legacy=Object.keys(normalized).some(key=>key.startsWith('tag:'));this.cache=Object.fromEntries(Object.entries(normalized).filter(([key,point])=>key.startsWith('relation:')||key.startsWith('paper:')&&(!legacy||point.pinned))); }
@@ -83,12 +84,16 @@ export class StarMap {
     const color=(value,fallback)=>value==='auto'?fallback:value;
     for(const[key,value]of Object.entries({'--render-star-color':color(appearance.starColor,'var(--muted)'),'--render-nebula-color':color(appearance.nebulaColor,'var(--teal)'),'--render-nebula-secondary':color(appearance.nebulaColorSecondary,'var(--warning)'),'--render-nebula-intensity':appearance.nebulaIntensity}))this.svg.style.setProperty(key,String(value));
     this.cosmos.sync(appearance,this.viewHeight);
+    this.symbolBackdrop.sync(appearance,this.viewHeight,getGraphSymbols(this.preferences.appearance));
     for(const[key,value]of Object.entries({'--render-node-stroke':appearance.nodeStroke+'px','--render-label-halo':appearance.labelHalo+'px','--render-glow':appearance.glow+'px','--render-label-color':appearance.labelColor==='auto'?'var(--muted)':appearance.labelColor}))this.svg.style.setProperty(key,value);
     for(const item of this.nodes){
       const node=item.node,shape=node.type==='relation'?appearance.relationShape:appearance.nodeShape,r=node.radius*appearance.nodeScale,geometry=nodeGeometry(shape,r);
-      const parts=cosmicNodeParts(shape,r,appearance);node.visualRadius=parts.radius;
+      const symbol=getGraphSymbols(this.preferences.appearance)[node.type==='relation'?'relation':'node'];
+      const parts=cosmicNodeParts(shape,r,appearance);node.visualRadius=shape==='symbol'?r*Math.SQRT2:parts.radius;
       item.effectsBack.replaceChildren(...parts.back.map(cosmicPartNode));item.effectsFront.replaceChildren(...parts.front.map(cosmicPartNode));item.group.dataset.cosmicShape=shape;
-      const core=el(geometry.tag,{...geometry.attrs,class:'node-core','data-shape':shape});item.core.replaceWith(core);item.core=core;
+      const core=el(geometry.tag,{...geometry.attrs,class:'node-core','data-shape':shape});
+      if(shape==='symbol')core.append(symbol?.length?graphSymbolNode(symbol,r):el('circle',{r,fill:'var(--node-color)'}));
+      item.core.replaceWith(core);item.core=core;
       item.group.style.setProperty('--node-color',appearance.colorMode==='category'?node.color:node.type==='relation'?'var(--warning)':'var(--teal)');
       item.ring.setAttribute('r',node.visualRadius+3);item.ring.setAttribute('stroke',appearance.colorMode==='category'?node.color:'var(--teal)');
       item.pin.setAttribute('cx',node.visualRadius+4);item.pin.setAttribute('cy',-node.visualRadius-3);

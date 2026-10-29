@@ -44,3 +44,6 @@ papers/
 backups/
 .trash/
 *.log
+
+# Apple font binaries in this user's private local build
+**/dist/fonts/apple/

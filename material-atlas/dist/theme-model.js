@@ -1,4 +1,7 @@
 import {GRAPH_THEME_TOKENS,cleanGraphToken,graphTokens,graphFromTokens} from './graph-appearance.js';
+import {BUILTIN_FONT_OPTIONS} from './builtin-fonts.js';
+import {GLASS_PRESETS} from './glass-presets.js';
+import {REIMU_PRESETS} from './reimu-presets.js';
 export const THEME_TOKENS={
   ...GRAPH_THEME_TOKENS,
   '--paper':'#f7f7f2','--surface':'#fcfdf9','--canvas':'#fafcf7','--panel':'#f0f4ec','--sidebar':'#f1f4ed',
@@ -9,6 +12,8 @@ export const THEME_TOKENS={
   '--mono':"Consolas, 'Microsoft YaHei', monospace",'--numeric':"'Segoe UI', 'Microsoft YaHei', sans-serif",'--font-size':'13px','--font-weight':'400','--line-height':'1.7','--heading-weight':'400','--heading-line-height':'1.5','--heading-scale':'1',
 };
 export const BUILTIN_THEMES=[
+  ...GLASS_PRESETS,
+  ...REIMU_PRESETS,
   {id:'buaa-blue',name:'北航蓝 · 空天',description:'空天蓝与银白 · 轨道圆环星图',tokens:{'--paper':'#f2f6fb','--surface':'#ffffff','--canvas':'#f8fbff','--panel':'#e8f0f9','--sidebar':'#edf3fa','--ink':'#19364f','--muted':'#637c93','--line':'#d4e1ee','--teal':'#005bac','--teal-light':'#e0edfa','--on-accent':'#ffffff','--warning':'#977333','--warning-soft':'#f7f0e0','--shadow':'#003b7017',...graphTokens({nodeFill:'hollow',relationShape:'diamond',edgeStyle:'curve',edgeOpacity:.32,nodeStroke:1.5,nodeScale:1.3,background:'dots',colorMode:'accent',edgeColor:'#5588b8'})}},
   {id:'paper',name:'学术纸白',description:'柔和纸底 · 松绿与黄铜',tokens:{}},
   {id:'academic-purple',name:'学术紫',description:'雾紫纸底 · 深紫与香槟金',tokens:{'--paper':'#f3f0f7','--surface':'#fffdfd','--canvas':'#fbf9fe','--panel':'#ede7f5','--sidebar':'#eee8f5','--ink':'#352c43','--muted':'#81758e','--line':'#ded5e9','--teal':'#705095','--teal-light':'#e8def3','--on-accent':'#ffffff','--warning':'#a48049','--warning-soft':'#f6efdf','--danger':'#a15b6c','--danger-soft':'#f9eaf0','--shadow':'#38204f18','--radius':'7px'}},
@@ -19,6 +24,7 @@ export const BUILTIN_THEMES=[
 ];
 export const FONT_OPTIONS=[
   {id:'theme',name:'跟随主题'},
+  ...BUILTIN_FONT_OPTIONS,
   {id:'consolas',name:'Consolas / 等宽',stack:"Consolas, 'Microsoft YaHei', monospace"},
   {id:'yahei',name:'微软雅黑',stack:`'Microsoft YaHei', 'PingFang SC', Arial, sans-serif`},
   {id:'dengxian',name:'等线',stack:`DengXian, 'Microsoft YaHei', Arial, sans-serif`},
@@ -66,17 +72,19 @@ export function parseThemeCSS(input,filename='自定义主题.css'){
     tokens[pair[1]]=cleanToken(pair[1],pair[2]);
   }
   if(!Object.keys(tokens).length)throw new Error('主题中至少需要一个有效变量。');
+  if(['--graph-node-shape','--graph-relation-shape','--graph-background'].some(key=>tokens[key]==='symbol'))throw new Error('自定义星图图形需使用携带 graphSymbols 的完整 .mtheme.json 主题包。');
   return{name,tokens};
 }
 export function themeCSS(name,tokens){
   const label=safeName(name).replace(/[*/]/g,'');
-  return `/* @name: ${label} */\n/* Materia 主题：颜色、字体和星图形态；只修改 :root 中的变量。 */\n:root {\n${Object.entries(tokens).filter(([key])=>own(THEME_TOKENS,key)).map(([key,value])=>`  ${key}: ${cleanToken(key,value)};`).join('\n')}\n}\n`;
+  const portable={...tokens};for(const[key,fallback]of [['--graph-node-shape','square'],['--graph-relation-shape','circle'],['--graph-background','plain']])if(portable[key]==='symbol')portable[key]=fallback;
+  return `/* @name: ${label} */\n/* Materia 主题：自定义图形资源仅保留在完整 JSON 包；CSS 使用基础形状。 */\n:root {\n${Object.entries(portable).filter(([key])=>own(THEME_TOKENS,key)).map(([key,value])=>`  ${key}: ${cleanToken(key,value)};`).join('\n')}\n}\n`;
 }
 export const THEME_SCHEMA_VERSION=2;
 export const MAX_THEME_BYTES=24*1024*1024;
 export const UI_DEFAULTS={style:'editorial',density:1,radius:6,buttonRadius:6,cardRadius:7,menuRadius:8,borderWidth:1,sidebarWidth:216,controlHeight:32,cardPadding:14,menuPadding:6,cardGap:10,buttonStyle:'solid',cardStyle:'outlined',sidebarStyle:'tinted',shadow:'soft'};
 export const ICON_DEFAULTS={style:'outline',strokeWidth:1.6,size:18,overrides:{}};
-const enumFields={style:['editorial','soft','technical','manuscript','encyclopedia'],buttonStyle:['solid','outlined','soft'],cardStyle:['flat','outlined','elevated','ruled'],sidebarStyle:['flat','tinted','ruled'],shadow:['none','soft','lifted']};
+const enumFields={style:['editorial','soft','technical','manuscript','encyclopedia','glass'],buttonStyle:['solid','outlined','soft'],cardStyle:['flat','outlined','elevated','ruled'],sidebarStyle:['flat','tinted','ruled'],shadow:['none','soft','lifted']};
 const ranges={density:[.86,1.14],radius:[0,20],buttonRadius:[0,22],cardRadius:[0,20],menuRadius:[0,18],borderWidth:[.5,2],sidebarWidth:[188,244],controlHeight:[30,40],cardPadding:[10,22],menuPadding:[4,12],cardGap:[6,18]};
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 function keysOnly(value,allowed,label){if(!object(value))throw new Error(`${label} 需为对象。`);for(const key of Object.keys(value))if(!allowed.includes(key))throw new Error(`${label} 不支持字段 ${key}。`);}
@@ -102,6 +110,20 @@ function cleanFonts(rows=[]){
  const weight=String(row.weight||'400');if(!/^[1-9]00(?: [1-9]00)?$/.test(weight))throw new Error('字体字重无效。');const style=row.style||'normal';if(!['normal','italic'].includes(style))throw new Error('字体样式无效。');return{id:row.id,family:row.family,format:row.format,data:row.data,weight,style,license:String(row.license||'').slice(0,30000),source:String(row.source||'').slice(0,1000)};
  });
 }
+export function cleanGraphSymbols(value={}){
+ keysOnly(value,['node','relation','background'],'assets.graphSymbols');const result={};
+ const paints=new Set(['none','currentColor','theme-accent','theme-ink','theme-warning','theme-paper','theme-canvas']);
+ for(const[role,shapes]of Object.entries(value)){
+  if(!Array.isArray(shapes))throw new Error('星图图形需为声明式 SVG 图形数组。');
+  const adapted=shapes.map(shape=>({...shape,attrs:Object.fromEntries(Object.entries(shape.attrs||{}).map(([key,v])=>{
+   if(!['fill','stroke'].includes(key))return[key,v];
+   if(!paints.has(v)&&!/^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(v))throw new Error('星图图形颜色需为十六进制颜色或主题语义色。');
+   return[key,'currentColor'];
+  }))}));
+  result[role]=cleanIconShapes(adapted).map((shape,index)=>({...shape,attrs:{...shape.attrs,...Object.fromEntries(['fill','stroke'].filter(k=>own(shapes[index].attrs,k)).map(k=>[k,shapes[index].attrs[k]]))}}));
+ }
+ return result;
+}
 export function parseThemePackage(input,filename='自定义主题.mtheme.json'){
  if(typeof input==='string'){if(input.length>MAX_THEME_BYTES)throw new Error('主题包不超过 24 MB。');try{input=JSON.parse(input);}catch{throw new Error('主题包不是有效 JSON。');}}
  keysOnly(input,['format','schemaVersion','name','description','tokens','typography','ui','icons','assets','graph'],'主题包');if(input.format!=='materia-theme'||input.schemaVersion!==2)throw new Error('请使用 format: materia-theme、schemaVersion: 2 的主题包。');
@@ -109,8 +131,10 @@ export function parseThemePackage(input,filename='自定义主题.mtheme.json'){
  if(input.typography!==undefined){keysOnly(input.typography,['body','heading','mono','numeric'],'typography');for(const[role,fields]of Object.entries(input.typography)){keysOnly(fields,role==='body'?['family','size','weight','lineHeight']:role==='heading'?['family','scale','weight','lineHeight']:['family'],'typography.'+role);const names={body:'--sans',heading:'--serif',mono:'--mono',numeric:'--numeric'};if(fields.family!==undefined)tokens[names[role]]=cleanToken(names[role],fields.family);for(const[key,target]of Object.entries(role==='body'?{size:'--font-size',weight:'--font-weight',lineHeight:'--line-height'}:{scale:'--heading-scale',weight:'--heading-weight',lineHeight:'--heading-line-height'}))if(fields[key]!==undefined)tokens[target]=cleanToken(target,key==='size'?fields[key]+'px':String(fields[key]));}}
  Object.assign(tokens,graphTokens(input.graph===undefined?{}:input.graph));
  if(input.ui!==undefined&&!object(input.ui))throw new Error('ui 需为对象。');const ui=cleanUI({...input.ui,...(!input.ui?.radius&&input.ui?.radius!==0&&tokens['--radius']?{radius:parseFloat(tokens['--radius'])}:{})});if(input.ui?.radius!==undefined)tokens['--radius']=ui.radius+'px';
- if(input.assets!==undefined)keysOnly(input.assets,['fonts'],'assets');const fonts=cleanFonts(input.assets?.fonts||[]);
- const result={format:'materia-theme',schemaVersion:2,name:safeName(input.name||filename.replace(/\.(mtheme\.)?json$/i,'')),description:String(input.description||'自定义完整外观方案').replace(/[\u0000-\u001f]/g,' ').slice(0,180),tokens,graph:graphFromTokens(tokens),ui,icons:cleanIcons(input.icons||{}),assets:{fonts}};if(JSON.stringify(result).length>MAX_THEME_BYTES)throw new Error('规范化后的完整主题包超过 24 MB。');return result;
+ if(input.assets!==undefined)keysOnly(input.assets,['fonts','graphSymbols'],'assets');const fonts=cleanFonts(input.assets?.fonts||[]);
+ const graphSymbols=input.assets?.graphSymbols===undefined?null:cleanGraphSymbols(input.assets.graphSymbols),graph=graphFromTokens(tokens);
+ for(const[role,key]of [['node','nodeShape'],['relation','relationShape'],['background','background']])if(graph[key]==='symbol'&&!graphSymbols?.[role])throw new Error(`assets.graphSymbols.${role} 缺失，无法绘制自定义星图图形。`);
+ const result={format:'materia-theme',schemaVersion:2,name:safeName(input.name||filename.replace(/\.(mtheme\.)?json$/i,'')),description:String(input.description||'自定义完整外观方案').replace(/[\u0000-\u001f]/g,' ').slice(0,180),tokens,graph,ui,icons:cleanIcons(input.icons||{}),assets:{fonts,...(graphSymbols?{graphSymbols}:{})}};if(JSON.stringify(result).length>MAX_THEME_BYTES)throw new Error('规范化后的完整主题包超过 24 MB。');return result;
 }
 export function themePackage(theme){return JSON.stringify(parseThemePackage({format:'materia-theme',schemaVersion:2,name:theme.name,description:theme.description,tokens:theme.tokens,graph:theme.graph,ui:theme.ui||UI_DEFAULTS,icons:theme.icons||ICON_DEFAULTS,assets:theme.assets||{fonts:[]}}),null,2)+'\n';}
 const profiles={
@@ -122,7 +146,7 @@ const profiles={
  sand:{description:'手稿式版面 · 楷体正文 · 轻盈圆笔',tokens:{'--sans':"Georgia, KaiTi, STKaiti, SimSun, serif",'--serif':"'Palatino Linotype', KaiTi, SimSun, serif",'--font-size':'14px','--line-height':'1.85','--heading-scale':'1.06'},ui:{style:'manuscript',density:1.12,radius:2,buttonRadius:3,cardRadius:2,menuRadius:4,cardPadding:18,cardGap:13,buttonStyle:'soft',cardStyle:'ruled',sidebarStyle:'ruled',shadow:'none'},icons:{style:'rounded',strokeWidth:1.25,size:19}},
  wikipedia:{description:'百科条目式 · 衬线标题 · 实心图标',tokens:{'--font-size':'13px','--heading-weight':'400'},ui:{style:'encyclopedia',density:.94,radius:0,buttonRadius:2,cardRadius:0,menuRadius:1,cardPadding:12,cardGap:6,buttonStyle:'outlined',cardStyle:'ruled',sidebarStyle:'flat',shadow:'none'},icons:{style:'solid',strokeWidth:1.4,size:18}},
 };
-for(const theme of BUILTIN_THEMES){const profile=profiles[theme.id];theme.description=profile.description;theme.tokens={...theme.tokens,...profile.tokens};theme.ui=cleanUI(profile.ui);theme.tokens['--radius']=theme.ui.radius+'px';theme.icons=cleanIcons(profile.icons);theme.assets={fonts:[]};theme.graph=graphFromTokens(theme.tokens);}
+for(const theme of BUILTIN_THEMES){const profile=profiles[theme.id]||theme;theme.description=profile.description;theme.tokens={...theme.tokens,...profile.tokens};theme.ui=cleanUI(profile.ui);theme.tokens['--radius']=theme.ui.radius+'px';theme.icons=cleanIcons(profile.icons);theme.assets={fonts:[],...(profile.assets?.graphSymbols?{graphSymbols:cleanGraphSymbols(profile.assets.graphSymbols)}:{})};theme.graph=graphFromTokens(theme.tokens);}
 function savedPackage(row){
  const previous=Array.isArray(row.fontWarnings)?row.fontWarnings.slice(0,8).map(safeName):[];
  try{return{package:parseThemePackage(row.package),fontWarnings:previous};}
@@ -145,7 +169,7 @@ export function cleanThemePreferences(value){
  const fonts={body:FONT_OPTIONS.some(f=>f.id===value?.fonts?.body)?value.fonts.body:'theme',heading:FONT_OPTIONS.some(f=>f.id===value?.fonts?.heading)?value.fonts.heading:'theme'};
  for(const role of ['mono','numeric'])if(FONT_OPTIONS.some(f=>f.id===value?.fonts?.[role])&&value.fonts[role]!=='theme')fonts[role]=value.fonts[role];
  const fontScale=cleanFontScale(value?.fontScale);
- return{selected,themes,...(Object.values(fonts).some(value=>value!=='theme')?{fonts}:{}),...(fontScale!==100?{fontScale}:{})};
+ return{selected,themes,...(typeof value?.glass==='boolean'?{glass:value.glass}:{}),...(Object.values(fonts).some(value=>value!=='theme')?{fonts}:{}),...(fontScale!==100?{fontScale}:{})};
 }
 function fontTokens(preferences,tokens){const result={...tokens};for(const[role,key]of [['body','--sans'],['heading','--serif'],['mono','--mono'],['numeric','--numeric']]){const font=FONT_OPTIONS.find(f=>f.id===preferences.fonts?.[role]);if(font?.stack)result[key]=font.stack;}return result;}
 export function resolveTheme(preferences){

@@ -1,0 +1,951 @@
+{
+  "name": "博丽灵梦 · Hakurei Reimu",
+  "graphThemeVersion": 3,
+  "artwork": "原创折角御札、朱印符线、红白阴阳玉与鸟居结界底纹",
+  "variants": [
+    {
+      "builtinId": "reimu-day",
+      "file": "01-博丽灵梦-朱白结界-浅色.mtheme.json",
+      "name": "博丽灵梦 · 朱白结界",
+      "description": "折角御札与朱印符线 · 红白阴阳玉 · 鸟居结界底纹",
+      "tokens": {
+        "--sans": "'Reimu Inter', 'Reimu Han Sans', 'Microsoft YaHei', sans-serif",
+        "--serif": "Georgia, KaiTi, STKaiti, SimSun, 'Reimu Han Sans', serif",
+        "--numeric": "'Reimu Mono', Consolas, 'Reimu Han Sans', monospace",
+        "--mono": "'Reimu Mono', Consolas, 'Reimu Han Sans', monospace",
+        "--font-size": "13px",
+        "--font-weight": "400",
+        "--line-height": "1.75",
+        "--heading-scale": "1.08",
+        "--heading-weight": "400",
+        "--heading-line-height": "1.6",
+        "--graph-node-shape": "symbol",
+        "--graph-relation-shape": "symbol",
+        "--graph-background": "symbol",
+        "--graph-node-fill": "solid",
+        "--graph-node-scale": "1.8",
+        "--graph-node-stroke": "1",
+        "--graph-color-mode": "accent",
+        "--graph-edge-style": "curve",
+        "--graph-edge-dash": "solid",
+        "--graph-edge-width": "1.1",
+        "--graph-edge-opacity": "0.46",
+        "--graph-label-scale": "1.08",
+        "--graph-label-halo": "3.5px",
+        "--graph-glow": "0px",
+        "--graph-twinkle": "off",
+        "--paper": "#f7f1e8",
+        "--surface": "#fffcf6",
+        "--canvas": "#fcf8f0",
+        "--panel": "#f0e6d9",
+        "--sidebar": "#f1e4dc",
+        "--ink": "#302124",
+        "--muted": "#745c59",
+        "--line": "#dcc9bd",
+        "--teal": "#b52f40",
+        "--teal-light": "#f7e1e0",
+        "--on-accent": "#fff9f0",
+        "--warning": "#85631c",
+        "--warning-soft": "#f5ebd1",
+        "--danger": "#9e2642",
+        "--danger-soft": "#f9e0e4",
+        "--shadow": "#501d2a16",
+        "--theme-mode": "light",
+        "--graph-edge-color": "#a35353",
+        "--graph-label-color": "#684e4b",
+        "--radius": "4px",
+        "--graph-star-density": "1",
+        "--graph-star-opacity": "0.55",
+        "--graph-star-color": "#cfe3ff",
+        "--graph-nebula-intensity": "0.5",
+        "--graph-nebula-color": "#6553ab",
+        "--graph-nebula-color-secondary": "#257c9b",
+        "--graph-orbit-scale": "1.65",
+        "--graph-orbit-tilt": "25",
+        "--graph-seed": "42"
+      },
+      "graph": {
+        "nodeShape": "symbol",
+        "relationShape": "symbol",
+        "nodeFill": "solid",
+        "edgeStyle": "curve",
+        "edgeDash": "solid",
+        "background": "symbol",
+        "colorMode": "accent",
+        "nodeScale": 1.8,
+        "nodeStroke": 1,
+        "edgeWidth": 1.1,
+        "edgeOpacity": 0.46,
+        "labelScale": 1.08,
+        "labelHalo": 3.5,
+        "glow": 0,
+        "edgeColor": "#a35353",
+        "labelColor": "#684e4b",
+        "starDensity": 1,
+        "starOpacity": 0.55,
+        "starColor": "#cfe3ff",
+        "nebulaIntensity": 0.5,
+        "nebulaColor": "#6553ab",
+        "nebulaColorSecondary": "#257c9b",
+        "orbitScale": 1.65,
+        "orbitTilt": 25,
+        "twinkle": "off",
+        "seed": 42
+      },
+      "ui": {
+        "style": "manuscript",
+        "density": 1.04,
+        "radius": 4,
+        "buttonRadius": 5,
+        "cardRadius": 4,
+        "menuRadius": 7,
+        "borderWidth": 1,
+        "sidebarWidth": 220,
+        "controlHeight": 34,
+        "cardPadding": 16,
+        "menuPadding": 7,
+        "cardGap": 11,
+        "buttonStyle": "solid",
+        "cardStyle": "outlined",
+        "sidebarStyle": "ruled",
+        "shadow": "none"
+      },
+      "icons": {
+        "style": "outline",
+        "strokeWidth": 1.5,
+        "size": 19,
+        "overrides": {
+          "orbit": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 9
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 3A4.5 4.5 0 0 1 12 12A4.5 4.5 0 0 0 12 21"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 7.5,
+                "r": 1.1,
+                "fill": "currentColor",
+                "stroke": "none"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 16.5,
+                "r": 1.1
+              }
+            }
+          ],
+          "library": [
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 4,
+                "y": 4,
+                "width": 7,
+                "height": 16,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 13,
+                "y": 4,
+                "width": 7,
+                "height": 16,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M7.5 8V13M16.5 8V13M4 17H11M13 17H20"
+              }
+            }
+          ],
+          "home": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M2.5 4.5Q12 7.2 21.5 4.5M4 9H20M7 6.5L6 21M17 6.5L18 21M9 9V12H15V9M4.5 21H8.5M15.5 21H19.5"
+              }
+            }
+          ],
+          "folder": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 7V4.5H9L12 7.5H21V20.5H3Z"
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 11H21M7 15H12"
+              }
+            }
+          ],
+          "tag": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M7 2.5H17V21.5L12 19.5L7 21.5Z"
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M10 7H14M10 10H14M12 6V14M10 15H14"
+              }
+            }
+          ],
+          "star": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 7L9 9L12 7L15 9L21 7V18L15 16L12 18L9 16L3 18Z"
+              }
+            },
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 9,
+                "y": 9,
+                "width": 6,
+                "height": 7,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M6 10V15M18 10V15"
+              }
+            }
+          ],
+          "assistant": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 20L15 4M13 3L18 6L15 10L19 12L16 16L20 18L17 21M10 7L14 10M7 11L11 14"
+              }
+            }
+          ],
+          "network": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 3
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 3,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 20,
+                "cy": 17,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 4,
+                "cy": 17,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 4.5V9M14.6 13.5L18.7 16.2M9.4 13.5L5.3 16.2"
+              }
+            }
+          ],
+          "palette": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 9
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 3V21M3 12H21"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 7.5,
+                "cy": 7.5,
+                "r": 1.2,
+                "fill": "currentColor",
+                "stroke": "none"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 16.5,
+                "cy": 16.5,
+                "r": 1.2
+              }
+            }
+          ],
+          "files": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M6 2.5H15L19 6.5V21.5H6ZM15 2.5V7.5H19M3 6V21M10 11H15M10 15H15M10 18H13"
+              }
+            }
+          ]
+        }
+      },
+      "graphSymbols": {
+        "node": [
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M7 0H15L17 2V24H7Z",
+              "fill": "#fff8e8",
+              "stroke": "#b52f40",
+              "stroke-width": 1
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M15 0V2H17",
+              "fill": "none",
+              "stroke": "#bc9450",
+              "stroke-width": 0.7
+            }
+          },
+          {
+            "tag": "rect",
+            "attrs": {
+              "x": 9,
+              "y": 3,
+              "width": 6,
+              "height": 5,
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M10.5 5.5H13.5M12 4V7",
+              "fill": "none",
+              "stroke": "#fff8e8",
+              "stroke-width": 0.65
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M12 10V21M9 12H15M10 15H14M9.5 19L12 16.5L14.5 19M10 22H14",
+              "fill": "none",
+              "stroke": "#b52f40",
+              "stroke-width": 1
+            }
+          }
+        ],
+        "relation": [
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 11.5,
+              "fill": "none",
+              "stroke": "#bc9450",
+              "stroke-width": 0.6
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 10,
+              "fill": "#fff8e8",
+              "stroke": "#b52f40",
+              "stroke-width": 0.75
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M12 2A10 10 0 0 1 12 22A5 5 0 0 1 12 12A5 5 0 0 0 12 2Z",
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 7,
+              "r": 1.5,
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 17,
+              "r": 1.5,
+              "fill": "#fff8e8",
+              "stroke": "none"
+            }
+          }
+        ],
+        "background": [
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 11.5,
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.035
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 9.8,
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.02
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M5.5 8.5Q12 10 18.5 8.5M6.5 11.5H17.5M8.5 9L8 19M15.5 9L16 19M10.5 11.5V14H13.5V11.5M7 19H9.5M14.5 19H17",
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.22
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M3 12H5M19 12H21M12 3V5M12 19V21",
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.08
+            }
+          }
+        ]
+      }
+    },
+    {
+      "builtinId": "reimu-night",
+      "file": "02-博丽灵梦-梦想封印-深色.mtheme.json",
+      "name": "博丽灵梦 · 梦想封印",
+      "description": "夜色御札与朱印符线 · 红白阴阳玉 · 鸟居结界底纹",
+      "tokens": {
+        "--sans": "'Reimu Inter', 'Reimu Han Sans', 'Microsoft YaHei', sans-serif",
+        "--serif": "Georgia, KaiTi, STKaiti, SimSun, 'Reimu Han Sans', serif",
+        "--numeric": "'Reimu Mono', Consolas, 'Reimu Han Sans', monospace",
+        "--mono": "'Reimu Mono', Consolas, 'Reimu Han Sans', monospace",
+        "--font-size": "13px",
+        "--font-weight": "400",
+        "--line-height": "1.75",
+        "--heading-scale": "1.08",
+        "--heading-weight": "400",
+        "--heading-line-height": "1.6",
+        "--graph-node-shape": "symbol",
+        "--graph-relation-shape": "symbol",
+        "--graph-background": "symbol",
+        "--graph-node-fill": "solid",
+        "--graph-node-scale": "1.8",
+        "--graph-node-stroke": "1",
+        "--graph-color-mode": "accent",
+        "--graph-edge-style": "curve",
+        "--graph-edge-dash": "solid",
+        "--graph-edge-width": "1.1",
+        "--graph-edge-opacity": "0.46",
+        "--graph-label-scale": "1.08",
+        "--graph-label-halo": "3.5px",
+        "--graph-glow": "0px",
+        "--graph-twinkle": "off",
+        "--paper": "#181216",
+        "--surface": "#241b20",
+        "--canvas": "#160f15",
+        "--panel": "#302229",
+        "--sidebar": "#20161c",
+        "--ink": "#f6eae0",
+        "--muted": "#c5a9a6",
+        "--line": "#4d363e",
+        "--teal": "#f28b93",
+        "--teal-light": "#46282f",
+        "--on-accent": "#2a0e17",
+        "--warning": "#e3bd72",
+        "--warning-soft": "#3c3022",
+        "--danger": "#ffa8af",
+        "--danger-soft": "#48252d",
+        "--shadow": "#07030766",
+        "--theme-mode": "dark",
+        "--graph-edge-color": "#bd6974",
+        "--graph-label-color": "#e1c6be",
+        "--radius": "4px",
+        "--graph-star-density": "1",
+        "--graph-star-opacity": "0.55",
+        "--graph-star-color": "#cfe3ff",
+        "--graph-nebula-intensity": "0.5",
+        "--graph-nebula-color": "#6553ab",
+        "--graph-nebula-color-secondary": "#257c9b",
+        "--graph-orbit-scale": "1.65",
+        "--graph-orbit-tilt": "25",
+        "--graph-seed": "42"
+      },
+      "graph": {
+        "nodeShape": "symbol",
+        "relationShape": "symbol",
+        "nodeFill": "solid",
+        "edgeStyle": "curve",
+        "edgeDash": "solid",
+        "background": "symbol",
+        "colorMode": "accent",
+        "nodeScale": 1.8,
+        "nodeStroke": 1,
+        "edgeWidth": 1.1,
+        "edgeOpacity": 0.46,
+        "labelScale": 1.08,
+        "labelHalo": 3.5,
+        "glow": 0,
+        "edgeColor": "#bd6974",
+        "labelColor": "#e1c6be",
+        "starDensity": 1,
+        "starOpacity": 0.55,
+        "starColor": "#cfe3ff",
+        "nebulaIntensity": 0.5,
+        "nebulaColor": "#6553ab",
+        "nebulaColorSecondary": "#257c9b",
+        "orbitScale": 1.65,
+        "orbitTilt": 25,
+        "twinkle": "off",
+        "seed": 42
+      },
+      "ui": {
+        "style": "manuscript",
+        "density": 1.04,
+        "radius": 4,
+        "buttonRadius": 5,
+        "cardRadius": 4,
+        "menuRadius": 7,
+        "borderWidth": 1,
+        "sidebarWidth": 220,
+        "controlHeight": 34,
+        "cardPadding": 16,
+        "menuPadding": 7,
+        "cardGap": 11,
+        "buttonStyle": "solid",
+        "cardStyle": "outlined",
+        "sidebarStyle": "ruled",
+        "shadow": "none"
+      },
+      "icons": {
+        "style": "outline",
+        "strokeWidth": 1.5,
+        "size": 19,
+        "overrides": {
+          "orbit": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 9
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 3A4.5 4.5 0 0 1 12 12A4.5 4.5 0 0 0 12 21"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 7.5,
+                "r": 1.1,
+                "fill": "currentColor",
+                "stroke": "none"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 16.5,
+                "r": 1.1
+              }
+            }
+          ],
+          "library": [
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 4,
+                "y": 4,
+                "width": 7,
+                "height": 16,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 13,
+                "y": 4,
+                "width": 7,
+                "height": 16,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M7.5 8V13M16.5 8V13M4 17H11M13 17H20"
+              }
+            }
+          ],
+          "home": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M2.5 4.5Q12 7.2 21.5 4.5M4 9H20M7 6.5L6 21M17 6.5L18 21M9 9V12H15V9M4.5 21H8.5M15.5 21H19.5"
+              }
+            }
+          ],
+          "folder": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 7V4.5H9L12 7.5H21V20.5H3Z"
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 11H21M7 15H12"
+              }
+            }
+          ],
+          "tag": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M7 2.5H17V21.5L12 19.5L7 21.5Z"
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M10 7H14M10 10H14M12 6V14M10 15H14"
+              }
+            }
+          ],
+          "star": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 7L9 9L12 7L15 9L21 7V18L15 16L12 18L9 16L3 18Z"
+              }
+            },
+            {
+              "tag": "rect",
+              "attrs": {
+                "x": 9,
+                "y": 9,
+                "width": 6,
+                "height": 7,
+                "rx": 1
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M6 10V15M18 10V15"
+              }
+            }
+          ],
+          "assistant": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M3 20L15 4M13 3L18 6L15 10L19 12L16 16L20 18L17 21M10 7L14 10M7 11L11 14"
+              }
+            }
+          ],
+          "network": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 3
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 3,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 20,
+                "cy": 17,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 4,
+                "cy": 17,
+                "r": 1.5
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 4.5V9M14.6 13.5L18.7 16.2M9.4 13.5L5.3 16.2"
+              }
+            }
+          ],
+          "palette": [
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 12,
+                "cy": 12,
+                "r": 9
+              }
+            },
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M12 3V21M3 12H21"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 7.5,
+                "cy": 7.5,
+                "r": 1.2,
+                "fill": "currentColor",
+                "stroke": "none"
+              }
+            },
+            {
+              "tag": "circle",
+              "attrs": {
+                "cx": 16.5,
+                "cy": 16.5,
+                "r": 1.2
+              }
+            }
+          ],
+          "files": [
+            {
+              "tag": "path",
+              "attrs": {
+                "d": "M6 2.5H15L19 6.5V21.5H6ZM15 2.5V7.5H19M3 6V21M10 11H15M10 15H15M10 18H13"
+              }
+            }
+          ]
+        }
+      },
+      "graphSymbols": {
+        "node": [
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M7 0H15L17 2V24H7Z",
+              "fill": "#fff8e8",
+              "stroke": "#b52f40",
+              "stroke-width": 1
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M15 0V2H17",
+              "fill": "none",
+              "stroke": "#bc9450",
+              "stroke-width": 0.7
+            }
+          },
+          {
+            "tag": "rect",
+            "attrs": {
+              "x": 9,
+              "y": 3,
+              "width": 6,
+              "height": 5,
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M10.5 5.5H13.5M12 4V7",
+              "fill": "none",
+              "stroke": "#fff8e8",
+              "stroke-width": 0.65
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M12 10V21M9 12H15M10 15H14M9.5 19L12 16.5L14.5 19M10 22H14",
+              "fill": "none",
+              "stroke": "#b52f40",
+              "stroke-width": 1
+            }
+          }
+        ],
+        "relation": [
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 11.5,
+              "fill": "none",
+              "stroke": "#bc9450",
+              "stroke-width": 0.6
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 10,
+              "fill": "#fff8e8",
+              "stroke": "#b52f40",
+              "stroke-width": 0.75
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M12 2A10 10 0 0 1 12 22A5 5 0 0 1 12 12A5 5 0 0 0 12 2Z",
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 7,
+              "r": 1.5,
+              "fill": "#b52f40",
+              "stroke": "none"
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 17,
+              "r": 1.5,
+              "fill": "#fff8e8",
+              "stroke": "none"
+            }
+          }
+        ],
+        "background": [
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 11.5,
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.035
+            }
+          },
+          {
+            "tag": "circle",
+            "attrs": {
+              "cx": 12,
+              "cy": 12,
+              "r": 9.8,
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.02
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M5.5 8.5Q12 10 18.5 8.5M6.5 11.5H17.5M8.5 9L8 19M15.5 9L16 19M10.5 11.5V14H13.5V11.5M7 19H9.5M14.5 19H17",
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.22
+            }
+          },
+          {
+            "tag": "path",
+            "attrs": {
+              "d": "M3 12H5M19 12H21M12 3V5M12 19V21",
+              "fill": "none",
+              "stroke": "theme-accent",
+              "stroke-width": 0.08
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

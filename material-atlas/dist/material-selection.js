@@ -1,4 +1,5 @@
 import {paperMaterials} from './materials.js';
+import {cleanMaterialGroups} from './material-list-model.js';
 import {parameterNameKey,parameterUnitKey} from './parameter-index.js';
 export const MATERIAL_SELECTION_DEFAULTS={version:1,mode:'paper',keys:[],filters:{query:'',parameter:'',unit:'*',paperId:''}};
 const string=(v,max)=>typeof v==='string'&&v.length<=max;
@@ -9,7 +10,7 @@ export function cleanMaterialSelection(value){
  if(!value||value.version!==1||!['paper','material'].includes(value.mode)||!Array.isArray(value.keys)||value.keys.length>5000)throw Error('不支持的材料选择设置，最多可选 5000 项。');
  const keys=[...new Set(value.keys.map(key=>{decodeMaterialKey(key);return key;}))],input=value.filters||{},filters={...MATERIAL_SELECTION_DEFAULTS.filters};
  for(const[key,max]of Object.entries({query:1000,parameter:300,unit:200,paperId:200}))if(input[key]!==undefined){if(!string(input[key],max))throw Error('材料筛选设置格式不正确。');filters[key]=input[key];}
- const result={version:1,mode:value.mode,keys,filters};if(JSON.stringify(result).length>8*1024*1024)throw Error('材料选择设置过大，请减少选择项。');return result;
+ const result={version:1,mode:value.mode,keys,filters,...(value.groups!==undefined?{groups:cleanMaterialGroups(value.groups)}:{})};if(JSON.stringify(result).length>8*1024*1024)throw Error('材料选择设置过大，请减少选择项。');return result;
 }
 export function materialInventory(papers){
  const rows=[];

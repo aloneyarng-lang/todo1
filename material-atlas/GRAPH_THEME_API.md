@@ -1,4 +1,34 @@
-# 星图主题接口 v2
+# 星图主题接口 v3（兼容 v1/v2）
+
+## v3 扩展：主题自带矢量图形
+
+当前程序的 `graphThemeVersion` 为 `3`。旧版 v1/v2 主题包与 CSS 继续使用原有字段；包的 `schemaVersion` 保持 `2`。新增的 `symbol` 形态用于任何主题的原创图形，不根据名称或内置 ID 开启。
+
+```json
+{
+  "format": "materia-theme",
+  "schemaVersion": 2,
+  "name": "任意自定义图形主题",
+  "graph": { "nodeShape": "symbol", "relationShape": "circle", "background": "plain" },
+  "assets": {
+    "fonts": [],
+    "graphSymbols": {
+      "node": [
+        {"tag":"rect","attrs":{"x":7,"y":0,"width":10,"height":24,"fill":"#fff8e8","stroke":"theme-accent","stroke-width":1}},
+        {"tag":"path","attrs":{"d":"M12 4V20M9 9H15","fill":"none","stroke":"theme-accent","stroke-width":1}}
+      ]
+    }
+  }
+}
+```
+
+`assets.graphSymbols.node`、`relation`、`background` 各自为最多 32 个 SVG 图形的数组；对应 `graph.nodeShape`、`relationShape`、`background` 设为 `symbol` 时必须提供资源。使用与图标相同的 24×24 坐标，中心为 (12,12)。节点按主题节点大小缩放，点击区域、标签避让与连线留白包含图形外缘；背景以低透明度居中显示，不参与力学或点击。
+
+支持 path、rect、circle、ellipse、line、polyline、polygon 及原有图标几何属性。填色、描边只接受十六进制颜色、`none`、`currentColor` 或 `theme-accent`、`theme-ink`、`theme-warning`、`theme-paper`、`theme-canvas` 语义色。脚本、事件、外部资源和任意 CSS 均拒绝。图形资源参与完整包预览、保存、导出和重启恢复。
+
+内置博丽灵梦两款采用此接口，源数据为 `dist/reimu-presets.js`，也是之后制作新包的例子。仅导出 CSS 时，自定义图形退为方形／圆形与纯色背景；完整图形需使用 JSON 包。导入新包需具备 v3 图形能力的程序，旧包无需转换。
+
+以下保留 v2 接口说明。
 
 Materia 1.4.5 起，主题包可配置恒星、带环行星、程序生成的星野与星云。使用现有「主题与字体 → 导入主题包 / CSS」即可导入，无需安装插件。主题包仍为 `format: "materia-theme"`、`schemaVersion: 2`；桌面能力接口 `materiaDesktop.info().graphThemeVersion` 为 `2`。
 

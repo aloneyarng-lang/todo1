@@ -4,6 +4,8 @@ import { normalizePaperMaterials, materializePaper } from './materials.js';
 import { takeRemoval, restoreRemoval } from './removal.js';
 import { planBulkEdit } from './bulk-edit.js';
 import {cleanStudy,mergeVocabulary,saveTranslationCache} from './study-model.js';
+import {cleanMaterialGroups,mergeMaterialGroups} from './material-list-model.js';
+import {cleanMaterialSelection} from './material-selection.js';
 export const DB_NAME = 'materia-library-v1';
 export const BACKUP_FORMAT = 'materia-backup';
 let connection;
@@ -127,14 +129,14 @@ export function blobToBase64(blob) {
   });
 }
 
-export async function createBackup(papers, collections, notes = {}, journalMetrics = [], study) {
+export async function createBackup(papers, collections, notes = {}, journalMetrics = [], study, materialGroups) {
   const records = [];
   for (const paper of papers) {
     const { file, ...metadata } = normalizePaperMaterials(paper);
     const blob = file?.desktop ? new Blob([await native.readPdf(paper.id)], { type: 'application/pdf' }) : file;
     records.push({ ...metadata, fileBase64: blob ? await blobToBase64(blob) : null });
   }
-  return { format: BACKUP_FORMAT, version: study?3:2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics, ...(study?{study:cleanStudy(study)}:{}) };
+  return { format: BACKUP_FORMAT, version: study?3:2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics, ...(study?{study:cleanStudy(study)}:{}), ...(materialGroups!==undefined?{materialGroups:cleanMaterialGroups(materialGroups)}:{}) };
 }
 
 export function readBackup(value) {
@@ -178,12 +180,14 @@ export function readBackup(value) {
   });
   const notes = normalizeNotes(value.notes || {});
   const journalMetrics = Array.isArray(value.journalMetrics) && value.journalMetrics.length ? parseMetrics(JSON.stringify(value.journalMetrics)) : [];
-  return { collections, papers, notes, journalMetrics, ...(value.version===3?{study:cleanStudy(value.study)}:{}) };
+  return { collections, papers, notes, journalMetrics, ...(value.version===3?{study:cleanStudy(value.study)}:{}), ...(value.materialGroups!==undefined?{materialGroups:cleanMaterialGroups(value.materialGroups)}:{}) };
 }
 
 export async function mergeBackup(backup) {
   const incomingStudy=backup.study?cleanStudy(backup.study):null;
+  const incomingGroups=backup.materialGroups!==undefined?cleanMaterialGroups(backup.materialGroups):null;
   await assertRichNoteSupport(backup.notes);
+  if(native&&incomingGroups?.length&&!(Number((await native.info()).materialGroupsVersion)>=1))throw new Error('请退出并重新启动 Materia，再恢复含材料分组的备份。');
   if(native&&backup.study&&!(Number((await native.info()).studyVersion)>=1))throw new Error('请重新启动新版 Materia 后再恢复含生词和译文的备份。');
   if (native) return native.mergeBackup({ ...backup, papers: await nativePapers(backup.papers) });
   const db = await openDatabase();
@@ -207,6 +211,10 @@ export async function mergeBackup(backup) {
     };
     const metricRequest = settings.get('journalMetrics');
     metricRequest.onsuccess = () => settings.put({ key: 'journalMetrics', value: mergeMetrics(metricRequest.result?.value || [], backup.journalMetrics || []) });
+    if(incomingGroups){
+      const groupRequest=settings.get('comparisonState');
+      groupRequest.onsuccess=()=>{try{const current=cleanMaterialSelection(groupRequest.result?.value);settings.put({key:'comparisonState',value:cleanMaterialSelection({...current,groups:mergeMaterialGroups(current.groups||[],incomingGroups)})});}catch(error){tx.abort();reject(error);}};
+    }
     if(incomingStudy){
       const incoming=incomingStudy,wordRequest=settings.get('vocabulary'),cacheRequest=settings.get('translationCache');
       wordRequest.onsuccess=()=>{try{settings.put({key:'vocabulary',value:mergeVocabulary(wordRequest.result?.value,incoming.vocabulary)});}catch(error){tx.abort();reject(error);}};

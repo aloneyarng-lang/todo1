@@ -1,0 +1,58 @@
+/* @name: 博丽灵梦 · 梦想封印 · 基础形状兼容版 */
+/* Materia 主题：自定义图形资源仅保留在完整 JSON 包；CSS 使用基础形状。 */
+:root {
+  --sans: 'Reimu Inter', 'Reimu Han Sans', 'Microsoft YaHei', sans-serif;
+  --serif: Georgia, KaiTi, STKaiti, SimSun, 'Reimu Han Sans', serif;
+  --numeric: 'Reimu Mono', Consolas, 'Reimu Han Sans', monospace;
+  --mono: 'Reimu Mono', Consolas, 'Reimu Han Sans', monospace;
+  --font-size: 13px;
+  --font-weight: 400;
+  --line-height: 1.75;
+  --heading-scale: 1.08;
+  --heading-weight: 400;
+  --heading-line-height: 1.6;
+  --graph-node-shape: square;
+  --graph-relation-shape: circle;
+  --graph-background: plain;
+  --graph-node-fill: solid;
+  --graph-node-scale: 1.8;
+  --graph-node-stroke: 1;
+  --graph-color-mode: accent;
+  --graph-edge-style: curve;
+  --graph-edge-dash: solid;
+  --graph-edge-width: 1.1;
+  --graph-edge-opacity: 0.46;
+  --graph-label-scale: 1.08;
+  --graph-label-halo: 3.5px;
+  --graph-glow: 0px;
+  --graph-twinkle: off;
+  --paper: #181216;
+  --surface: #241b20;
+  --canvas: #160f15;
+  --panel: #302229;
+  --sidebar: #20161c;
+  --ink: #f6eae0;
+  --muted: #c5a9a6;
+  --line: #4d363e;
+  --teal: #f28b93;
+  --teal-light: #46282f;
+  --on-accent: #2a0e17;
+  --warning: #e3bd72;
+  --warning-soft: #3c3022;
+  --danger: #ffa8af;
+  --danger-soft: #48252d;
+  --shadow: #07030766;
+  --theme-mode: dark;
+  --graph-edge-color: #bd6974;
+  --graph-label-color: #e1c6be;
+  --radius: 4px;
+  --graph-star-density: 1;
+  --graph-star-opacity: 0.55;
+  --graph-star-color: #cfe3ff;
+  --graph-nebula-intensity: 0.5;
+  --graph-nebula-color: #6553ab;
+  --graph-nebula-color-secondary: #257c9b;
+  --graph-orbit-scale: 1.65;
+  --graph-orbit-tilt: 25;
+  --graph-seed: 42;
+}

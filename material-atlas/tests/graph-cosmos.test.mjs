@@ -14,7 +14,7 @@ test('cosmic graph API round trips through real package and CSS import/export wi
  const theme=resolveTheme(prefs);for(const[key,value]of Object.entries(graph))assert.equal(theme.graph[key],value);
  assert.deepEqual(parseThemePackage(themePackage(theme)).graph,theme.graph);
  assert.deepEqual(graphFromTokens(parseThemeCSS(themeCSS('Cosmos',theme.tokens)).tokens),theme.graph);
- assert.equal(GRAPH_APPEARANCE_VERSION,2);
+ assert.equal(GRAPH_APPEARANCE_VERSION,4);
 });
 test('cosmic values are bounded, typed and rejected before changing saved preferences',()=>{
  const before={selected:'paper',themes:[]};
@@ -42,7 +42,7 @@ test('planet rings expand interaction and label bounds, star and classic geometr
 });
 test('native library advertises graph API v2 and persists cosmic themes across reopening',async()=>{
  await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/cosmos-'));
- const library=await new LocalLibrary(root).init();assert.equal((await library.info()).graphThemeVersion,2);
+ const library=await new LocalLibrary(root).init();assert.equal((await library.info()).graphThemeVersion,GRAPH_APPEARANCE_VERSION);
  const preferences=importThemeFiles({},[{name:'cosmos.json',text:JSON.stringify({format:'materia-theme',schemaVersion:2,name:'Cosmos',graph})}],()=> 'custom-cosmos');
  await library.setSetting('themePreferences',preferences);const reopened=await new LocalLibrary(root).init();assert.deepEqual(reopened.getSetting('themePreferences'),preferences);assert.deepEqual(reopened.getPapers(),[]);
 });

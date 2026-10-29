@@ -1,5 +1,6 @@
 import {cleanStudy,cleanVocabulary,cleanTranslationCache,cleanTranslationPreferences,applyStudyOperation,mergeVocabulary,saveTranslationCache} from '../dist/study-model.js';
 import {cleanMaterialSelection} from '../dist/material-selection.js';
+import {cleanMaterialGroups,mergeMaterialGroups} from '../dist/material-list-model.js';
 import { normalizeNotes, cleanReaderState, cleanReaderDrafts } from '../dist/note-model.js';
 import { mkdir, readFile, writeFile, rename, copyFile, stat, access } from 'node:fs/promises';
 import path from 'node:path';
@@ -169,6 +170,7 @@ export class LocalLibrary {
   updateStudy(operation){return this.mutate(data=>applyStudyOperation(data.settings,operation));}
   async mergeBackup(backup) {
     const study=backup.study?cleanStudy(backup.study):null;
+    const materialGroups=backup.materialGroups!==undefined?cleanMaterialGroups(backup.materialGroups):null;
     return this.mutate(async data => {
       const byId = new Map(data.papers.map(p => [p.id, p]));
       for (const input of backup.papers) { const paper = await this.preparePaper(input, byId.get(input.id)); byId.set(paper.id, paper); }
@@ -180,11 +182,12 @@ export class LocalLibrary {
       for (const [key, notes] of Object.entries(incomingNotes)) currentNotes[key] = [...new Map([...(currentNotes[key] || []), ...notes].map(n => [n.id, n])).values()];
       data.settings.notes = currentNotes; data.settings.mode = 'own';
       data.settings.journalMetrics = mergeMetrics(data.settings.journalMetrics || [], backup.journalMetrics || []);
+      if(materialGroups){const current=cleanMaterialSelection(data.settings.comparisonState);data.settings.comparisonState=cleanMaterialSelection({...current,groups:mergeMaterialGroups(current.groups||[],materialGroups)});}
       if(study){data.settings.vocabulary=mergeVocabulary(data.settings.vocabulary,study.vocabulary);let cache=data.settings.translationCache||[];for(const row of study.cache)cache=saveTranslationCache(cache,row);data.settings.translationCache=cache;data.settings.translationPreferences=study.preferences;}
     });
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1, materialGroupsVersion: 1 };
   }
 }

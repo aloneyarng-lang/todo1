@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cleanAgentKey,agentCredentialIssue,agentHTTPError} from '../dist/agent-auth.js';
-import {completeWithProvider,AgentSettings,testAgentConnection} from '../desktop/agent.mjs';
+import {completeWithProvider,AgentSettings,testAgentConnection,normalizeAgentConfig} from '../desktop/agent.mjs';
 import {mkdtemp,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -21,6 +21,30 @@ test('connection diagnostics use GET models only, never include prompts or crede
   let request;const fetcher=async(url,options)=>{request={url,options};return new Response(JSON.stringify({data:[{id:'test-model'},{id:'provider-secret'}]}));};
   const result=await testAgentConnection({...config,apiKey:'synthetic-test-key'},{},fetcher);assert.equal(request.url,'https://api.deepseek.com/v1/models');assert.equal(request.options.method,'GET');assert.equal(request.options.body,undefined);assert.equal(request.options.redirect,'error');assert.equal(request.options.headers.Authorization,'Bearer synthetic-test-key');assert.equal(result.ok,true);assert.equal(result.keyProvided,true);assert.equal(result.modelAvailable,true);assert.ok(!JSON.stringify(result).includes('synthetic-test-key'));assert.ok(!JSON.stringify(result).includes('provider-secret'));
   assert.equal((await testAgentConnection({...config,model:'other-model',apiKey:'synthetic-test-key'},{},fetcher)).modelAvailable,false);
+});
+
+test('Gemini diagnostics accept resource-prefixed model IDs and send canonical IDs only to the official compatibility endpoint',async()=>{
+  const google={baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-test-flash',protocol:'chat',apiKey:'AQ.synthetic-test-key'};
+  let request;const fetcher=async(url,options)=>{request={url,options};return new Response(JSON.stringify({data:[{id:'models/gemini-test-flash'},{id:'gemini-other-flash'}]}));};
+  const result=await testAgentConnection(google,{},fetcher);assert.equal(result.modelAvailable,true);assert.deepEqual(result.availableModels,['gemini-test-flash','gemini-other-flash']);assert.equal(request.options.method,'GET');assert.equal(request.options.body,undefined);assert.ok(!JSON.stringify(result).includes(google.apiKey));
+  assert.equal((await testAgentConnection({...google,model:'models/gemini-test-flash'},{},fetcher)).modelAvailable,true);
+  assert.equal(normalizeAgentConfig({...google,baseUrl:google.baseUrl+'/chat/completions/',model:'models/gemini-test-flash'}).model,'gemini-test-flash');
+  assert.equal(normalizeAgentConfig({...google,baseUrl:'https://other.example/v1',model:'models/gemini-test-flash'}).model,'models/gemini-test-flash');
+  assert.equal(normalizeAgentConfig({...google,baseUrl:'https://generativelanguage.googleapis.com.evil.example/v1beta/openai',model:'models/gemini-test-flash'}).model,'models/gemini-test-flash');
+  await completeWithProvider({...google,model:'models/gemini-test-flash'},{messages:[]},async(_url,options)=>{assert.equal(JSON.parse(options.body).model,'gemini-test-flash');return new Response(JSON.stringify({choices:[{message:{content:'ok'},finish_reason:'stop'}]}));});
+});
+
+test('missing Gemini models produce bounded usable suggestions without rendering response content or exposing reflected credentials',async()=>{
+  const google={baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-not-listed',protocol:'chat',apiKey:'gemini-synthetic-secret'};
+  const data=[{id:google.apiKey},{id:'models/'+google.apiKey},{id:'<script>alert(1)</script>'},{id:'gemini-name with spaces'},null,{},...Array.from({length:80},(_,i)=>({id:'models/gemini-listed-'+i}))];
+  const result=await testAgentConnection(google,{},async()=>new Response(JSON.stringify({data})));assert.equal(result.ok,true);assert.equal(result.modelAvailable,false);assert.equal(result.availableModels.length,40);assert.equal(result.modelListTruncated,true);assert.match(result.message,/gemini-listed-0/);assert.ok(!JSON.stringify(result).includes(google.apiKey));assert.ok(!JSON.stringify(result).includes('<script>'));assert.equal(result.availableModels[0],'gemini-listed-0');
+});
+
+test('Gemini rejects missing credentials, native endpoint confusion and Responses before sending requests',async()=>{
+  const google={baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-test',protocol:'chat',apiKey:'AQ.synthetic-test-key'};let calls=0;const fetcher=async()=>{calls++;throw Error('must not request');};
+  for(const patch of [{apiKey:''},{protocol:'responses'},{baseUrl:'https://generativelanguage.googleapis.com/v1beta'}]){const result=await testAgentConnection({...google,...patch},{},fetcher);assert.equal(result.stage,'configuration');assert.equal(result.ok,false);}
+  assert.match((await testAgentConnection({...google,protocol:'responses'},{},fetcher)).message,/Chat Completions/);
+  await assert.rejects(completeWithProvider({...google,protocol:'responses'},{messages:[]},fetcher),/Chat Completions/);assert.equal(calls,0);
 });
 test('diagnostics identify omitted versus rejected credentials and hide provider error and malformed response bodies',async()=>{
   let calls=0;const missing=await testAgentConnection(config,{},async()=>{calls++;});assert.equal(missing.keyProvided,false);assert.equal(missing.stage,'configuration');assert.equal(calls,0);

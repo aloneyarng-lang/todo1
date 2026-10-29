@@ -1,12 +1,12 @@
 // Safe graph appearance tokens shared by CSS themes, complete packages and the SVG renderer.
-export const GRAPH_APPEARANCE_VERSION=2;
+export const GRAPH_APPEARANCE_VERSION=4;
 export const GRAPH_FIELDS={
- nodeShape:{token:'--graph-node-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet']},
- relationShape:{token:'--graph-relation-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet']},
+ nodeShape:{token:'--graph-node-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','symbol']},
+ relationShape:{token:'--graph-relation-shape',default:'circle',values:['circle','diamond','hexagon','square','star','planet','symbol']},
  nodeFill:{token:'--graph-node-fill',default:'solid',values:['solid','hollow']},
  edgeStyle:{token:'--graph-edge-style',default:'straight',values:['straight','curve']},
  edgeDash:{token:'--graph-edge-dash',default:'solid',values:['solid','dashed','dotted']},
- background:{token:'--graph-background',default:'plain',values:['plain','dots','grid','stars','nebula']},
+ background:{token:'--graph-background',default:'plain',values:['plain','dots','grid','stars','nebula','symbol']},
  colorMode:{token:'--graph-color-mode',default:'category',values:['category','accent']},
  nodeScale:{token:'--graph-node-scale',default:'1',range:[.7,1.8]},
  nodeStroke:{token:'--graph-node-stroke',default:'.7',range:[.4,3]},
@@ -48,8 +48,13 @@ export const GRAPH_PRESETS={
  crystal:{name:'晶格节点',graph:graphFromTokens(graphTokens({nodeShape:'hexagon',relationShape:'diamond',edgeStyle:'straight',background:'grid',nodeStroke:1.2,nodeScale:1.35,edgeOpacity:.3,edgeDash:'dashed'}))},
  cosmos:{name:'宇宙星野',graph:graphFromTokens(graphTokens({nodeShape:'star',relationShape:'planet',background:'nebula',nodeFill:'solid',colorMode:'accent',nodeScale:1.15,nodeStroke:.5,edgeStyle:'straight',edgeOpacity:.34,glow:4,twinkle:'subtle'}))},
 };
-export function graphAppearance(tokens={},preset='theme'){return preset!=='theme'&&GRAPH_PRESETS[preset]?{...GRAPH_PRESETS[preset].graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:graphFromTokens(tokens);}
+let themeProfiles=new Map();
+export function setGraphThemeOptions(themes){themeProfiles=new Map(themes.map(t=>['theme:'+t.id,{id:'theme:'+t.id,name:t.name,graph:t.graph||graphFromTokens(t.tokens),symbols:t.assets?.graphSymbols||{}}]));}
+export function getGraphThemeOptions(){return [...themeProfiles.values()];}
+export function getGraphThemeProfile(id){return themeProfiles.get(id);}
+export function graphAppearance(tokens={},preset='theme'){return themeProfiles.has(preset)?{...themeProfiles.get(preset).graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:preset!=='theme'&&GRAPH_PRESETS[preset]?{...GRAPH_PRESETS[preset].graph,edgeColor:graphFromTokens(tokens).edgeColor,labelColor:graphFromTokens(tokens).labelColor}:graphFromTokens(tokens);}
 export function nodeGeometry(shape,r){
+ if(shape==='symbol')return{tag:'g',attrs:{}};
  if(shape==='star')return{tag:'path',attrs:{d:`M0 ${-r*1.25} Q${r*.16} ${-r*.16} ${r*1.05} 0 Q${r*.16} ${r*.16} 0 ${r*1.25} Q${-r*.16} ${r*.16} ${-r*1.05} 0 Q${-r*.16} ${-r*.16} 0 ${-r*1.25} Z`}};
  if(shape==='planet')return{tag:'circle',attrs:{r:r*.68}};
  if(shape==='square')return{tag:'rect',attrs:{x:-r*.85,y:-r*.85,width:r*1.7,height:r*1.7,rx:r*.16}};

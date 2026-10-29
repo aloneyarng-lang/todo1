@@ -28,18 +28,19 @@ export function createComparison(config) {
   const esc=config.escape,$=selector=>document.querySelector(selector);
   let chart=null,observer=null,tab='table',settings={...FIGURE_DEFAULTS},chartLoad,revision=0,inputTimer,preferenceTimer;
   const paperSelected=()=>config.getPapers().filter(p=>config.getSelection().has(p.id)).sort((a,b)=>(Number(a.year)||9999)-(Number(b.year)||9999)||a.title.localeCompare(b.title));
-  const picker=createMaterialPicker({escape:esc,showModal:config.showModal,toast:config.toast,getPapers:config.getPapers,canPersist:config.canSaveMaterialSelection,persist:value=>config.saveMaterialSelection(value),changed:()=>refreshBar(),onPaper:()=>open(tab),onMaterialMode:()=>{settings.group='material';},onDone:(next,preferred)=>open(next,preferred),openPaper:config.openSourcePaper});
+  const picker=createMaterialPicker({escape:esc,showModal:config.showModal,toast:config.toast,getPapers:config.getPapers,canPersist:config.canSaveMaterialSelection,canPersistGroups:config.canSaveMaterialGroups,persist:value=>config.saveMaterialSelection(value),changed:()=>refreshBar(),onPaper:()=>open(tab),onMaterialMode:()=>{settings.group='material';},onDone:(next,preferred)=>open(next,preferred),openPaper:config.openSourcePaper});
   const selected=()=>picker.mode()==='material'?picker.subjects().sort((a,b)=>(Number(a.year)||9999)-(Number(b.year)||9999)||a.title.localeCompare(b.title)):paperSelected();
   function dispose(){revision++;observer?.disconnect();observer=null;chart?.dispose();chart=null;clearTimeout(inputTimer);}
   async function selectIds(ids){await config.setSelection(new Set(ids));refreshBar();}
   async function toggle(id){const ids=new Set(config.getSelection());ids.has(id)?ids.delete(id):ids.add(id);await selectIds(ids);}
   function refreshBar(){
     const count=config.getSelection().size;
-    $('#comparison-count').textContent=count;$('#comparison-bar').hidden=!count;
+    $('#comparison-count').textContent=count;$('#comparison-bar').hidden=!count||Boolean(config.isMaterialList?.());
     document.querySelectorAll('[data-compare-id]').forEach(input=>input.checked=config.getSelection().has(input.dataset.compareId));
     document.querySelectorAll('[data-selected-count]').forEach(node=>node.textContent=count);
     document.querySelectorAll('[data-action="batch-remove"],[data-action="bulk-edit"],[data-selection-required]').forEach(button=>button.disabled=!count);
     const badge=$('#comparison-nav-count');if(badge)badge.textContent=picker.mode()==='material'?(picker.resolved().selected.length?picker.resolved().selected.length+' 材料':''):count||'';
+    config.materialSelectionChanged?.();
   }
   async function selectFiltered(){const ids=new Set(config.getSelection());for(const p of config.getFiltered())ids.add(p.id);await selectIds(ids);}
   function axes(){
@@ -142,5 +143,5 @@ export function createComparison(config) {
       if(action==='reset-settings'){settings={...FIGURE_DEFAULTS,y:settings.y};open('chart');}
     }catch(error){button.disabled=false;config.toast(error.message,true);}
   });
-  return {open,dispose,openMaterials:(preferred=null,next='table')=>picker.open(preferred,next),flushSelection:picker.flush,loadSelectionPreferences:picker.load,getMaterialSelection:picker.getState,refreshBar,toggle,selectFiltered,selectIds,loadPreferences:value=>{settings=cleanFigureSettings(value);}};
+  return {open,dispose,openMaterials:(preferred=null,next='table')=>picker.open(preferred,next),selectMaterials:picker.selectKeys,setMaterialGroups:picker.setGroups,flushSelection:picker.flush,loadSelectionPreferences:picker.load,getMaterialSelection:picker.getState,refreshBar,toggle,selectFiltered,selectIds,loadPreferences:value=>{settings=cleanFigureSettings(value);}};
 }

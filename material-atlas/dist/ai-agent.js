@@ -19,10 +19,10 @@ export function createAgentController(options) {
     <div class="agent-chatbar"><span id="agent-chat-title">新对话</span></div>
     <details id="agent-settings" class="agent-settings"><summary>配置 AI 服务</summary><form id="agent-config-form">
       <label>API 地址<input id="agent-base-url" type="url" placeholder="https://api.example.com/v1" required autocomplete="off"></label>
-      <div class="agent-config-row"><label>模型名称<input id="agent-model" placeholder="填写服务提供的模型 ID" maxlength="200" required autocomplete="off"></label><label>API 协议<select id="agent-protocol"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select></label></div>
+      <div class="agent-config-row"><label>模型名称<input id="agent-model" list="agent-model-options" placeholder="填写服务提供的模型 ID" maxlength="200" required autocomplete="off"><datalist id="agent-model-options"></datalist></label><label>API 协议<select id="agent-protocol"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select></label></div>
       <label>API 密钥<input id="agent-key" type="password" placeholder="可留空用于无需密钥的本机服务" maxlength="4096" autocomplete="off" spellcheck="false"></label>
       <label class="agent-remember"><input id="agent-remember" type="checkbox">用系统加密记住密钥（仅桌面版）</label>
-      <p class="agent-help">研究对话需工具调用，翻译无需；部分 OpenAI 模型需选择 Responses 协议。本机服务可使用 http://localhost 地址。密钥不写入文献库或备份。</p>
+      <p class="agent-help">研究对话需工具调用，翻译无需；Google Gemini 官方兼容接口请选择 Chat Completions，部分 OpenAI 模型需选择 Responses。测试 Gemini 连接后，可从模型输入框选择返回的模型 ID。本机服务可使用 http://localhost 地址。密钥不写入文献库或备份。</p>
       <div class="agent-config-actions"><button type="button" class="text-button" data-agent-action="forget">清除密钥</button><button class="primary" type="submit">保存设置</button></div>
     </form></details>
     <p id="agent-data-notice" class="agent-data-notice"></p>
@@ -39,6 +39,7 @@ export function createAgentController(options) {
   let browserKey = '', entries = [], busy = false, controller, requestId = '', generation = 0, initialized = false, returnFocus, contextIdentity = '';
   let chats=emptyAgentHistory(),historyReady=false,historyKey='',saveQueue=Promise.resolve(),libraryEpoch=0;
   let connectionBusy=false;
+  $('#agent-base-url').addEventListener('input',()=>{$('#agent-model-options').replaceChildren();connectionStatus.textContent='';});
   const sources = new Map();
   const activeChat = () => chats.conversations.find(chat=>chat.id===chats.activeId);
   const scopeIds = () => $('#agent-scope').value === 'selected' ? (activeChat()?.scopeIds || [...new Set(options.getSelectedIds())]) : null;
@@ -181,7 +182,9 @@ export function createAgentController(options) {
         const response=await fetch('/api/ai-agent/test',{method:'POST',headers:{'Content-Type':'application/json','X-Materia-Agent':'1'},body:JSON.stringify({config:value})});
         try{result=await response.json();}catch{throw new Error('当前预览服务不支持连接检测，请重新启动新版预览服务。');}if(!response.ok)throw new Error(result.error||'连接检测失败。');
       }
-      const details=[config.appVersion?`版本：${config.appVersion}`:'',result.host?`服务：${result.host}`:'',result.model?`模型：${result.model}`:'',result.keyProvided!==undefined?`本次请求${result.keyProvided?'已附带':'未附带'}密钥`:'',result.httpStatus?`HTTP ${result.httpStatus}`:''].filter(Boolean).join(' · ');
+      const choices=(Array.isArray(result.availableModels)?result.availableModels:[]).slice(0,40).filter(id=>typeof id==='string'&&/^gemini-[a-z\d][a-z\d._-]{0,180}$/i.test(id));
+      $('#agent-model-options').replaceChildren(...choices.map(id=>{const option=document.createElement('option');option.value=id;return option;}));
+      const details=[config.appVersion?`版本：${config.appVersion}`:'',result.host?`服务：${result.host}`:'',result.model?`模型：${result.model}`:'',result.keyProvided!==undefined?(result.stage==='configuration'?`${result.keyProvided?'已填写':'未填写'}密钥，尚未发送请求`:`本次请求${result.keyProvided?'已附带':'未附带'}密钥`):'',result.httpStatus?`HTTP ${result.httpStatus}`:''].filter(Boolean).join(' · ');
       connectionStatus.textContent=[result.message,details,'检测不会保存修改，验证后请点击“保存设置”。'].filter(Boolean).join('\n');
     }catch(error){connectionStatus.textContent=error.message||'连接检测失败，请重试。';}
     finally{connectionBusy=false;button.disabled=false;}

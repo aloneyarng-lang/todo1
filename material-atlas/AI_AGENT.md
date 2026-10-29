@@ -14,6 +14,14 @@
 
 聊天中的提问和回答以 Markdown 排版，支持标题、加粗/斜体、列表、表格、引用、链接、行内代码和代码块。有效文献引用仍可点击跳转；代码里的引用保持原样。表格与长代码可横向滚动，网页链接在外部浏览器打开。HTML 原样显示，Markdown 图片显示替代文本，不加载远程图片。
 
+## Google AI Studio / Gemini 配置
+
+Google 官方兼容地址填写 `https://generativelanguage.googleapis.com/v1beta/openai`，协议选择 **Chat Completions**。当前适配器会明确拦截此地址与 Responses 协议的错误组合；Google 原生 `/v1beta` 地址不能直接作为 OpenAI 兼容地址使用。`AQ.` 前缀的新密钥可以正常填写。
+
+「测试连接」只查询模型列表，不发送问题或文献，也不保存表单。程序识别 Gemini 模型 ID 的 `models/` 前缀；列表没有匹配项时会显示服务返回的部分 Gemini ID，并在模型输入框提供候选项。选择确切 ID 后重新检测，再点击「保存设置」。HTTP 200 表示服务接受了模型列表请求，不代表已经验证模型生成、工具调用、地区权限或额度。没有开启系统加密记住密钥时，重启后仍需重新填写。
+
+官方说明：[OpenAI 兼容接口](https://ai.google.dev/gemini-api/docs/openai)、[Gemini API 密钥](https://ai.google.dev/gemini-api/docs/api-key)。
+
 ## 聊天历史
 
 发送问题及收到回答后自动保存聊天；重新打开程序或刷新页面后恢复上次对话。点击「对话操作 → 历史记录」可按标题或内容搜索、打开并继续旧对话，或点「新对话」另开一条。新建对话、修改服务设置不会删除之前的聊天。删除某条历史需要再点一次「确认删除」，不影响其他聊天或文献。

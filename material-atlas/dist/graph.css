@@ -36,3 +36,7 @@
 #star-map[data-graph-paused="true"] .cosmic-twinkle,#star-map.dragging .cosmic-twinkle{animation-play-state:paused}
 @keyframes cosmic-twinkle{from{filter:brightness(.72)}to{filter:brightness(1.35)}}
 @media(prefers-reduced-motion:reduce){#star-map .cosmic-twinkle{animation:none!important}}
+/* Package artwork has explicit paints and 24×24 coordinates; it shares input and layout with other nodes. */
+#star-map .graph-node .node-core[data-shape="symbol"]{fill:none;stroke:none;filter:none}
+#star-map .theme-symbol-art{stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+#star-map .theme-symbol-backdrop{pointer-events:none;overflow:hidden}

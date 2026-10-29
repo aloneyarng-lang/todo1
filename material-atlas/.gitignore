@@ -29,3 +29,6 @@ papers/
 backups/
 .trash/
 *.log
+
+# Apple font binaries are local to the private desktop copy
+dist/fonts/apple/

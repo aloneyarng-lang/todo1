@@ -8,10 +8,20 @@ export function cleanAgentKey(value){
   if(key.length>4096||/[\r\n]/.test(key))throw new Error('API 密钥格式无效，请只填写密钥本身。');
   return key;
 }
+export function isGeminiCompatible(baseUrl){
+  try{const url=new URL(baseUrl);return url.hostname==='generativelanguage.googleapis.com'&&/^\/v1(?:beta)?\/openai\/?$/.test(url.pathname);}catch{return false;}
+}
+export function normalizeAgentModel(model,baseUrl){
+  const value=String(model||'').trim();return isGeminiCompatible(baseUrl)?value.replace(/^models\//,''):value;
+}
 export function agentCredentialIssue(config={}){
   if(!config.model)return '请先在 AI 服务设置中填写地址和模型。';
   let host;try{host=new URL(config.baseUrl).hostname;}catch{return '请在 AI 服务设置中填写有效的 API 地址。';}
-  const required=['api.openai.com','api.deepseek.com'].includes(host),hasKey=config.hasKey??Boolean(config.apiKey);
+  if(host==='generativelanguage.googleapis.com'){
+    if(!isGeminiCompatible(config.baseUrl))return 'Google Gemini 请填写官方 OpenAI 兼容地址：https://generativelanguage.googleapis.com/v1beta/openai。';
+    if(config.protocol==='responses')return 'Google Gemini 官方兼容接口请使用 Chat Completions 协议，当前选择的 Responses 不能用于此配置。请修改协议后重新测试并保存。';
+  }
+  const required=['api.openai.com','api.deepseek.com','generativelanguage.googleapis.com'].includes(host),hasKey=config.hasKey??Boolean(config.apiKey);
   return required&&!hasKey?'当前未提供 API 密钥。请在「AI 研究助手 → 服务设置」重新填写并保存；未勾选系统加密记住密钥时，重启后需要重新填写。':'';
 }
 export function agentHTTPError(status,hasKey){
