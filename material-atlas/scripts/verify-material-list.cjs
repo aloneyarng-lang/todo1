@@ -10,7 +10,14 @@ const clone = value => value == null ? value : JSON.parse(JSON.stringify(value))
 let browser, page, failSave = false; const errors = [], checks = [];
 async function check(name, run) {await run(); checks.push(name); console.log('PASS ' + name);}
 async function choose(reference, selected = true) {const inputs = page.locator('[data-material-list-choice]'), refs = await inputs.evaluateAll(nodes => nodes.map(node => node.dataset.materialListChoice)); const index = refs.indexOf(reference); assert.ok(index >= 0, reference); await inputs.nth(index).setChecked(selected);}
-async function action(name) {await page.locator(`[data-material-list-action="${name}"]`).click();}
+async function action(name) {
+  const target = page.locator(`[data-material-list-action="${name}"]`);
+  if (!await target.isVisible()) {
+    const toggle = page.locator('[data-menu-toggle="material-organize-menu"]');
+    if (await toggle.isVisible()) await toggle.click();
+  }
+  await target.click();
+}
 async function group(name) {await page.getByRole('button', {name, exact: false}).filter({has: page.locator('small')}).click();}
 (async () => {
   await fs.mkdir(output, {recursive: true}); const stage = await fs.mkdtemp(path.join(output, 'stage-'));

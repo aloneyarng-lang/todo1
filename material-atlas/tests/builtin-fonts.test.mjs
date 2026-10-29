@@ -9,8 +9,8 @@ test('glass appearances and actual bundled font choices work without custom them
   for(const id of ['liquid-glass','liquid-glass-dark']){
     const theme=resolveTheme({selected:id});assert.equal(theme.custom,false);assert.equal(theme.ui.style,'glass');
     assert.ok(theme.tokens['--sans'].includes('Materia SF Pro'));assert.ok(theme.tokens['--mono'].includes('Materia SF Mono'));
-    assert.equal(cleanThemePreferences({selected:id}).selected,id);assert.equal(theme.tokens['--theme-mode'],id.endsWith('dark')?'dark':'light');
-    assert.equal(theme.assets.fonts.length,0);assert.ok(BUILTIN_THEMES.some(row=>row.id===id));
+    assert.equal(cleanThemePreferences({selected:id}).selected,'liquid-glass');assert.equal(theme.tokens['--theme-mode'],id.endsWith('dark')?'dark':'light');
+    assert.equal(theme.assets.fonts.length,0);assert.ok(BUILTIN_THEMES.some(row=>row.id===theme.id));
   }
   for(const id of ['apple-sf-pro','apple-sf-mono','apple-new-york','inter-bundled','source-han-bundled','source-code-bundled'])assert.ok(FONT_OPTIONS.some(row=>row.id===id));
 });

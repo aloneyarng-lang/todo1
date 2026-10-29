@@ -1,0 +1,438 @@
+{
+  "format": "materia-theme",
+  "schemaVersion": 2,
+  "name": "命运石之门",
+  "description": "世界线观测 · 琥珀仪表 · 未来道具研究所",
+  "tokens": {
+    "--graph-node-shape": "symbol",
+    "--graph-relation-shape": "symbol",
+    "--graph-node-fill": "hollow",
+    "--graph-edge-style": "curve",
+    "--graph-edge-dash": "solid",
+    "--graph-background": "plain",
+    "--graph-color-mode": "accent",
+    "--graph-node-scale": "1.65",
+    "--graph-node-stroke": "1.15",
+    "--graph-edge-width": "0.85",
+    "--graph-edge-opacity": "0.25",
+    "--graph-label-scale": "1",
+    "--graph-label-halo": "3px",
+    "--graph-glow": "1.4px",
+    "--graph-edge-color": "auto",
+    "--graph-label-color": "auto",
+    "--graph-star-density": "1",
+    "--graph-star-opacity": "0.55",
+    "--graph-star-color": "#cfe3ff",
+    "--graph-nebula-intensity": "0.5",
+    "--graph-nebula-color": "#6553ab",
+    "--graph-nebula-color-secondary": "#257c9b",
+    "--graph-orbit-scale": "1.65",
+    "--graph-orbit-tilt": "25",
+    "--graph-twinkle": "off",
+    "--graph-seed": "42",
+    "--paper": "#ece9e2",
+    "--surface": "#fffdf7",
+    "--canvas": "#ece9e2",
+    "--panel": "#a85d2815",
+    "--sidebar": "#ece9e2",
+    "--ink": "#292c2d",
+    "--muted": "#676762",
+    "--line": "#463a3026",
+    "--teal": "#97491e",
+    "--teal-light": "#a85d281b",
+    "--on-accent": "#ffffff",
+    "--warning": "#7c6428",
+    "--warning-soft": "#f6e9c8",
+    "--danger": "#b63b36",
+    "--danger-soft": "#fbe6e0",
+    "--shadow": "#3e291c20",
+    "--serif": "'Materia SF Pro', -apple-system, BlinkMacSystemFont, 'Materia Inter', 'PingFang SC', 'Materia Source Han Sans', 'Microsoft YaHei UI', sans-serif",
+    "--sans": "'Materia SF Pro', -apple-system, BlinkMacSystemFont, 'Materia Inter', 'PingFang SC', 'Materia Source Han Sans', 'Microsoft YaHei UI', sans-serif",
+    "--radius": "16px",
+    "--theme-mode": "light",
+    "--mono": "'Materia SF Mono', 'SF Mono', 'Materia Source Code Pro', Consolas, 'PingFang SC', 'Materia Source Han Sans', 'Microsoft YaHei UI', sans-serif",
+    "--numeric": "'Materia SF Mono', 'SF Mono', 'Materia Source Code Pro', Consolas, 'PingFang SC', 'Materia Source Han Sans', 'Microsoft YaHei UI', sans-serif",
+    "--font-size": "13px",
+    "--font-weight": "400",
+    "--line-height": "1.7",
+    "--heading-weight": "600",
+    "--heading-line-height": "1.5",
+    "--heading-scale": "1"
+  },
+  "graph": {
+    "nodeShape": "symbol",
+    "relationShape": "symbol",
+    "nodeFill": "hollow",
+    "edgeStyle": "curve",
+    "edgeDash": "solid",
+    "background": "plain",
+    "colorMode": "accent",
+    "nodeScale": 1.65,
+    "nodeStroke": 1.15,
+    "edgeWidth": 0.85,
+    "edgeOpacity": 0.25,
+    "labelScale": 1,
+    "labelHalo": 3,
+    "glow": 1.4,
+    "edgeColor": "auto",
+    "labelColor": "auto",
+    "starDensity": 1,
+    "starOpacity": 0.55,
+    "starColor": "#cfe3ff",
+    "nebulaIntensity": 0.5,
+    "nebulaColor": "#6553ab",
+    "nebulaColorSecondary": "#257c9b",
+    "orbitScale": 1.65,
+    "orbitTilt": 25,
+    "twinkle": "off",
+    "seed": 42
+  },
+  "ui": {
+    "style": "glass",
+    "density": 1.04,
+    "radius": 16,
+    "buttonRadius": 18,
+    "cardRadius": 20,
+    "menuRadius": 18,
+    "borderWidth": 1,
+    "sidebarWidth": 224,
+    "controlHeight": 34,
+    "cardPadding": 17,
+    "menuPadding": 8,
+    "cardGap": 12,
+    "buttonStyle": "solid",
+    "cardStyle": "elevated",
+    "sidebarStyle": "tinted",
+    "shadow": "lifted"
+  },
+  "icons": {
+    "style": "technical",
+    "strokeWidth": 1.45,
+    "size": 19,
+    "overrides": {
+      "library": [
+        {
+          "tag": "rect",
+          "attrs": {
+            "x": 2.5,
+            "y": 5,
+            "width": 19,
+            "height": 14,
+            "rx": 3
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M5 8v8M9 8v8M13 8v8M17 8v8M4 19v2M20 19v2M4 3h16"
+          }
+        }
+      ],
+      "files": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M7 3h9l4 4v14H7ZM16 3v5h4M3 7v14"
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M10 11h7M10 14h3M15 14h2M10 17h7"
+          }
+        }
+      ],
+      "orbit": [
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 12,
+            "r": 8.5
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M2 12h5M17 12h5M12 2v5M12 17v5M8 15c3 0 2-6 6-6M8 9h.01M16 15h.01"
+          }
+        }
+      ],
+      "network": [
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 4,
+            "cy": 12,
+            "r": 2
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 20,
+            "cy": 5,
+            "r": 2
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 20,
+            "cy": 19,
+            "r": 2
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M6 12h4c4 0 2-7 8-7M10 12c4 0 2 7 8 7"
+          }
+        }
+      ],
+      "chart": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M4 3v17h17M7 13h3l2-7 3 12 2-7h4"
+          }
+        }
+      ],
+      "settings": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M9 2.5h6l.7 2.3 2.1 1.2 2.4-.5 2 3.5-1.7 1.8v2.4l1.7 1.8-2 3.5-2.4-.5-2.1 1.2-.7 2.3H9l-.7-2.3-2.1-1.2-2.4.5-2-3.5 1.7-1.8v-2.4L1.8 9l2-3.5 2.4.5 2.1-1.2Z"
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 12,
+            "r": 4
+          }
+        }
+      ],
+      "clock": [
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 12,
+            "r": 9
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M12 4v2M12 18v2M4 12h2M18 12h2M12 8v5l4 2"
+          }
+        }
+      ],
+      "assistant": [
+        {
+          "tag": "rect",
+          "attrs": {
+            "x": 3,
+            "y": 4,
+            "width": 18,
+            "height": 15,
+            "rx": 2
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M7 9h2M15 9h2M7 14h10M7 19v2M17 19v2M12 2v2"
+          }
+        }
+      ],
+      "folder": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M3 7V5h6l2 2h10v13H3Z"
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M6 11h12M7 14h3M14 14h3"
+          }
+        }
+      ],
+      "tag": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M3 4h8l10 10-7 7L3 10Z"
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 7,
+            "cy": 8,
+            "r": 1
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M11 10l5 5M9 12l5 5"
+          }
+        }
+      ],
+      "natural-layout": [
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M4 18c1-9 4-10 8-10s6 3 8 8"
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 4,
+            "cy": 18,
+            "r": 2
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 8,
+            "r": 2
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 20,
+            "cy": 16,
+            "r": 2
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M17 3v4M15 5h4"
+          }
+        }
+      ]
+    }
+  },
+  "assets": {
+    "fonts": [],
+    "graphSymbols": {
+      "node": [
+        {
+          "tag": "rect",
+          "attrs": {
+            "x": 6,
+            "y": 1.5,
+            "width": 12,
+            "height": 19,
+            "rx": 5,
+            "fill": "none",
+            "stroke": "theme-accent",
+            "stroke-width": 1.3
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M9 4h6M8.5 21h7M9.5 23v-2M14.5 23v-2",
+            "fill": "none",
+            "stroke": "theme-warning",
+            "stroke-width": 0.9
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M9 9c1-4 5-3 5.5-.5.6 2.6-4.7 3.5-5 6.2H15M8.5 18h7",
+            "fill": "none",
+            "stroke": "theme-accent",
+            "stroke-width": 1.15
+          }
+        }
+      ],
+      "relation": [
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 12,
+            "r": 9.5,
+            "fill": "none",
+            "stroke": "theme-accent",
+            "stroke-width": 1.15
+          }
+        },
+        {
+          "tag": "circle",
+          "attrs": {
+            "cx": 12,
+            "cy": 12,
+            "r": 6,
+            "fill": "none",
+            "stroke": "theme-warning",
+            "stroke-width": 0.65
+          }
+        },
+        {
+          "tag": "path",
+          "attrs": {
+            "d": "M12 .5v3M12 20.5v3M.5 12h3M20.5 12h3M4 4l2 2M18 18l2 2M4 20l2-2M18 6l2-2M7 14l5-5 5 3M12 9v8",
+            "fill": "none",
+            "stroke": "theme-accent",
+            "stroke-width": 1.1
+          }
+        }
+      ]
+    }
+  },
+  "variants": {
+    "light": {
+      "--theme-mode": "light",
+      "--paper": "#ece9e2",
+      "--surface": "#fffdf7",
+      "--canvas": "#ece9e2",
+      "--panel": "#a85d2815",
+      "--sidebar": "#ece9e2",
+      "--ink": "#292c2d",
+      "--muted": "#676762",
+      "--line": "#463a3026",
+      "--teal": "#97491e",
+      "--teal-light": "#a85d281b",
+      "--on-accent": "#ffffff",
+      "--warning": "#7c6428",
+      "--warning-soft": "#f6e9c8",
+      "--danger": "#b63b36",
+      "--danger-soft": "#fbe6e0",
+      "--shadow": "#3e291c20"
+    },
+    "dark": {
+      "--theme-mode": "dark",
+      "--paper": "#101316",
+      "--surface": "#25282a",
+      "--canvas": "#101316",
+      "--panel": "#e89a4d1d",
+      "--sidebar": "#101316",
+      "--ink": "#f0e8de",
+      "--muted": "#b6ada1",
+      "--line": "#e8d5b729",
+      "--teal": "#ffac62",
+      "--teal-light": "#ed974d24",
+      "--on-accent": "#261b12",
+      "--warning": "#b5c68d",
+      "--warning-soft": "#30392a",
+      "--danger": "#f29c8a",
+      "--danger-soft": "#4d2c29",
+      "--shadow": "#00000066"
+    }
+  }
+}

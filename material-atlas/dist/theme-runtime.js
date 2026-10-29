@@ -25,8 +25,7 @@ export function createThemeRuntime(changed){
   for(const[key,[variable,unit]]of Object.entries(uiVariables))root.style.setProperty(variable,String(theme.ui[key])+unit);
   root.style.setProperty('--icon-stroke',String(theme.icons.strokeWidth));root.style.setProperty('--icon-size',theme.icons.size+'px');
   Object.assign(root.dataset,{theme:theme.id,themeMode:theme.tokens['--theme-mode'],themeStyle:theme.ui.style,themeButtons:theme.ui.buttonStyle,themeCards:theme.ui.cardStyle,themeSidebar:theme.ui.sidebarStyle,themeShadow:theme.ui.shadow,themeIcons:theme.icons.style});root.style.colorScheme=theme.tokens['--theme-mode'];setIconTheme(theme.icons);
-  const glass=effects.glass??theme.ui.style==='glass';root.dataset.liquidGlass=String(glass);
-  if(!glass&&theme.ui.style==='glass')root.dataset.themeStyle='editorial';
+  const glass=true;root.dataset.liquidGlass='true';root.dataset.themeStyle='glass';
   setGlassInteractions(glass);setGraphSymbols(theme.assets?.graphSymbols||{});
   const assets=theme.assets?.fonts||[],missing=theme.fontWarnings?.length||0;status=assets.length?'正在加载主题字体…':missing?'主题资源字体缺失或损坏，已使用后备字体。':'使用系统字体，缺少字体时采用后备字体。';root.dataset.themeFonts=assets.length?'loading':missing?'fallback':'system';
   const embedded=Promise.allSettled(assets.map(async asset=>{const face=new FontFace(aliases.get(asset.family),fontBytes(asset),{weight:asset.weight,style:asset.style,display:'swap'});await face.load();if(ticket===generation){document.fonts.add(face);faces.push(face);}}));

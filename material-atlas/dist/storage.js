@@ -6,6 +6,7 @@ import { planBulkEdit } from './bulk-edit.js';
 import {cleanStudy,mergeVocabulary,saveTranslationCache} from './study-model.js';
 import {cleanMaterialGroups,mergeMaterialGroups} from './material-list-model.js';
 import {cleanMaterialSelection} from './material-selection.js';
+import {cleanImportActivity,seedImportActivity,recordImports,mergeImportActivity} from './import-activity.js';
 export const DB_NAME = 'materia-library-v1';
 export const BACKUP_FORMAT = 'materia-backup';
 let connection;
@@ -52,11 +53,19 @@ async function transaction(store, mode, run) {
 }
 
 export const getPapers = async () => (await (native ? native.getPapers() : transaction('papers', 'readonly', store => store.getAll()))).map(materializePaper);
-export const putPaper = async paper => native ? native.putPapers(await nativePapers([paper])) : transaction('papers', 'readwrite', store => store.put(normalizePaperMaterials(paper)));
-export const putPapers = async papers => { const clean = papers.map(normalizePaperMaterials); return native ? native.putPapers(await nativePapers(clean)) : transaction('papers', 'readwrite', store => { for (const paper of clean) store.put(paper); }); };
+async function webPutPapers(incoming){
+  const db=await openDatabase();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['papers','settings'],'readwrite'),papers=tx.objectStore('papers'),settings=tx.objectStore('settings'),all=papers.getAll(),activity=settings.get('importActivity');let pending=2;
+    const ready=()=>{if(--pending)return;try{const history=activity.result?.value||seedImportActivity(all.result);settings.put({key:'importActivity',value:recordImports(history,incoming)});for(const paper of incoming)papers.put(paper);}catch(error){tx.abort();reject(error);}};
+    all.onsuccess=ready;activity.onsuccess=ready;tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('导入未保存。'));
+  });
+}
+export const putPaper = async paper => putPapers([paper]);
+export const putPapers = async papers => { const clean = papers.map(normalizePaperMaterials); return native ? native.putPapers(await nativePapers(clean)) : webPutPapers(clean); };
 export const deletePaper = id => native ? native.deletePaper(id) : transaction('papers', 'readwrite', store => store.delete(id));
 export const getSetting = async key => native ? native.getSetting(key) : (await transaction('settings', 'readonly', store => store.get(key)))?.value;
 export const setSetting = async (key, value) => { if(key==='notes'){value=normalizeNotes(value);await assertRichNoteSupport(value);}if(key==='readerDrafts')await assertRichNoteSupport({drafts:(value||[]).map(row=>row.note)});return native ? native.setSetting(key, value) : transaction('settings', 'readwrite', store => store.put({ key, value })); };
+export async function getImportActivity(){const saved=await getSetting('importActivity');return saved?cleanImportActivity(saved):seedImportActivity(await getPapers());}
 
 async function removalTransaction(batchId, run) {
   const db = await openDatabase();
@@ -129,14 +138,14 @@ export function blobToBase64(blob) {
   });
 }
 
-export async function createBackup(papers, collections, notes = {}, journalMetrics = [], study, materialGroups) {
+export async function createBackup(papers, collections, notes = {}, journalMetrics = [], study, materialGroups, importActivity) {
   const records = [];
   for (const paper of papers) {
     const { file, ...metadata } = normalizePaperMaterials(paper);
     const blob = file?.desktop ? new Blob([await native.readPdf(paper.id)], { type: 'application/pdf' }) : file;
     records.push({ ...metadata, fileBase64: blob ? await blobToBase64(blob) : null });
   }
-  return { format: BACKUP_FORMAT, version: study?3:2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics, ...(study?{study:cleanStudy(study)}:{}), ...(materialGroups!==undefined?{materialGroups:cleanMaterialGroups(materialGroups)}:{}) };
+  return { format: BACKUP_FORMAT, version: study?3:2, exportedAt: new Date().toISOString(), collections, papers: records, notes, journalMetrics, ...(study?{study:cleanStudy(study)}:{}), ...(materialGroups!==undefined?{materialGroups:cleanMaterialGroups(materialGroups)}:{}),...(importActivity?{importActivity:cleanImportActivity(importActivity)}:{}) };
 }
 
 export function readBackup(value) {
@@ -180,7 +189,7 @@ export function readBackup(value) {
   });
   const notes = normalizeNotes(value.notes || {});
   const journalMetrics = Array.isArray(value.journalMetrics) && value.journalMetrics.length ? parseMetrics(JSON.stringify(value.journalMetrics)) : [];
-  return { collections, papers, notes, journalMetrics, ...(value.version===3?{study:cleanStudy(value.study)}:{}), ...(value.materialGroups!==undefined?{materialGroups:cleanMaterialGroups(value.materialGroups)}:{}) };
+  return { collections, papers, notes, journalMetrics, ...(value.version===3?{study:cleanStudy(value.study)}:{}), ...(value.materialGroups!==undefined?{materialGroups:cleanMaterialGroups(value.materialGroups)}:{}),...(value.importActivity?{importActivity:cleanImportActivity(value.importActivity)}:{}) };
 }
 
 export async function mergeBackup(backup) {
@@ -195,6 +204,9 @@ export async function mergeBackup(backup) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['papers', 'settings'], 'readwrite');
     const settings = tx.objectStore('settings');
+    const activityRequest=settings.get('importActivity'),existingPapers=tx.objectStore('papers').getAll();let activityPending=2;
+    const mergeActivity=()=>{if(--activityPending)return;try{settings.put({key:'importActivity',value:mergeImportActivity(activityRequest.result?.value||seedImportActivity(existingPapers.result),backup.importActivity||seedImportActivity(backup.papers),backup.papers)});}catch(error){tx.abort();reject(error);}};
+    activityRequest.onsuccess=mergeActivity;existingPapers.onsuccess=mergeActivity;
     const request = settings.get('collections');
     request.onsuccess = () => {
       const merged = new Map((request.result?.value || []).map(item => [item.id, item]));

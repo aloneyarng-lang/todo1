@@ -7,9 +7,15 @@ import {icon,setIconTheme} from '../dist/icons.js';
 import {LocalLibrary} from '../desktop/library.mjs';
 const example=JSON.parse(await readFile('theme-examples/blueprint.mtheme.json','utf8'));
 const file=pack=>({name:'test.mtheme.json',text:JSON.stringify(pack)});
-test('built-in appearance profiles differ in typography, density, shape and icons through the same imported schema',()=>{
- const profiles=BUILTIN_THEMES.map(row=>resolveTheme({selected:row.id}));assert.ok(new Set(profiles.map(p=>p.tokens['--sans'])).size>=4);assert.equal(new Set(profiles.map(p=>[p.tokens['--sans'],p.tokens['--serif'],p.tokens['--theme-mode'],p.ui.style,p.ui.density,p.icons.style].join('|'))).size,BUILTIN_THEMES.length);assert.ok(new Set(profiles.map(p=>p.icons.style)).size>=4);assert.ok(new Set(profiles.map(p=>p.ui.cardStyle)).size>=3);
- for(const profile of profiles){const imported=resolveTheme(importThemeFiles({},[{name:'copy.mtheme.json',text:themePackage(profile)}],()=> 'custom-copy'));assert.deepEqual(imported.ui,profile.ui);assert.deepEqual(imported.icons,profile.icons);assert.equal(imported.tokens['--sans'],profile.tokens['--sans']);}
+test('curated themes share glass geometry, have two color modes and round trip their design',()=>{
+ const profiles=BUILTIN_THEMES.map(row=>resolveTheme({selected:row.id}));assert.equal(profiles.length,7);assert.equal(new Set(profiles.map(p=>p.tokens['--teal'])).size,7);
+ for(const profile of profiles){
+  assert.equal(profile.ui.style,'glass');assert.equal(profile.ui.cardRadius,20);assert.equal(profile.ui.menuRadius,18);
+  for(const mode of ['light','dark']){
+   const design=resolveTheme({selected:profile.id,mode}),imported=resolveTheme(importThemeFiles({mode},[{name:'copy.mtheme.json',text:themePackage(design)}],()=> 'custom-copy'));
+   assert.equal(design.tokens['--theme-mode'],mode);assert.deepEqual(imported.ui,design.ui);assert.deepEqual(imported.icons,design.icons);for(const [key,value]of Object.entries(design.tokens)){if(key.startsWith('--graph-')&&Number.isFinite(Number(value)))assert.equal(Number(imported.tokens[key]),Number(value));else assert.equal(imported.tokens[key],value,key);}assert.deepEqual(imported.variants,design.variants);
+  }
+ }
 });
 test('a standalone package round trips embedded font bytes, units, UI, semantic icon shapes and four font overrides',()=>{
  const parsed=parseThemePackage(example);assert.equal(parsed.assets.fonts[0].data,example.assets.fonts[0].data);assert.ok(parsed.assets.fonts[0].license.includes('OPEN FONT LICENSE'));
@@ -36,4 +42,4 @@ test('complete theme resources persist in a native library across reopening with
  const reopened=await new LocalLibrary(root).init();assert.deepEqual(reopened.getSetting('themePreferences'),prefs);assert.deepEqual(reopened.getPapers(),papers);assert.deepEqual(reopened.getSetting('notes'),notes);assert.deepEqual(Buffer.from(await reopened.readPdf('p')),pdf);
 });
 
-test('missing saved font payloads retain the theme appearance and report fallback while new imports still reject them',()=>{const prefs=importThemeFiles({},[file(example)],()=> 'custom-missing');delete prefs.themes[0].package.assets.fonts[0].data;const recovered=cleanThemePreferences(prefs),theme=resolveTheme(recovered);assert.equal(recovered.selected,'custom-missing');assert.equal(theme.ui.style,'technical');assert.equal(theme.assets.fonts.length,0);assert.equal(theme.fontWarnings.length,1);assert.throws(()=>importThemeFiles({},[file(prefs.themes[0].package)],()=> 'custom-new'));});
+test('missing saved font payloads retain the theme appearance and report fallback while new imports still reject them',()=>{const prefs=importThemeFiles({},[file(example)],()=> 'custom-missing');delete prefs.themes[0].package.assets.fonts[0].data;const recovered=cleanThemePreferences(prefs),theme=resolveTheme(recovered);assert.equal(recovered.selected,'custom-missing');assert.equal(theme.ui.style,'glass');assert.equal(theme.assets.fonts.length,0);assert.equal(theme.fontWarnings.length,1);assert.throws(()=>importThemeFiles({},[file(prefs.themes[0].package)],()=> 'custom-new'));});

@@ -69,6 +69,7 @@ test('missing PDF during undo cannot partly restore a batch; traversal is reject
   const archivePath = path.join(lib.root, '.trash', `${receipt.id}.json`);
   const archive = JSON.parse(await readFile(archivePath, 'utf8'));
   archive.papers[1].pdfPath = 'papers/missing.pdf';
+  archive.papers[1].fingerprint = '0'.repeat(64);
   await writeFile(archivePath, JSON.stringify(archive));
   await assert.rejects(lib.restorePapers(receipt.id));
   assert.deepEqual(lib.getPapers().map(paper => paper.id), ['batch-c']);

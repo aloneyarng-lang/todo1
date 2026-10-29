@@ -5,9 +5,9 @@ import path from 'node:path';
 import {BUILTIN_THEMES,resolveTheme,themePackage,parseThemePackage,importThemeFiles,themeCSS,parseThemeCSS} from '../dist/theme-model.js';
 import {LocalLibrary} from '../desktop/library.mjs';
 
-test('Reimu is available offline as two built-in themes and exports its actual artwork',()=>{
+test('Reimu is available offline with two modes and exports its actual artwork',()=>{
  for(const id of ['reimu-day','reimu-night']){
-  assert.ok(BUILTIN_THEMES.find(t=>t.id===id));const theme=resolveTheme({selected:id});
+  const theme=resolveTheme({selected:id});assert.ok(BUILTIN_THEMES.find(t=>t.id===theme.id));assert.equal(theme.tokens['--theme-mode'],id==='reimu-night'?'dark':'light');
   assert.equal(theme.graph.nodeShape,'symbol');assert.equal(theme.graph.relationShape,'symbol');assert.equal(theme.graph.background,'symbol');
   const imported=resolveTheme(importThemeFiles({},[{name:'portable.json',text:themePackage(theme)}],()=> 'custom-portable'));
   assert.deepEqual(imported.assets.graphSymbols,theme.assets.graphSymbols);assert.deepEqual(imported.graph,theme.graph);

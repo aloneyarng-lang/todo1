@@ -3,7 +3,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } from 'e
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveLibraryRoot } from './library-location.mjs';
+import { prepareLibraryLocation,portableLibraryRoot } from './library-location.mjs';
 import { LocalLibrary } from './library.mjs';
 import { AgentSettings, completeWithProvider,testAgentConnection } from './agent.mjs';
 import { runResearchAgent } from '../dist/ai-agent-core.js';
@@ -15,6 +15,7 @@ app.commandLine.appendSwitch('force-renderer-accessibility');
 const profile = process.env.MATERIA_PROFILE_DIR || (app.isPackaged ? app.getPath('userData') : path.join(appRoot, '.local', 'desktop-profile'));
 app.setPath('userData', profile);
 let mainWindow, library, agentHistory, canvasStore;
+function observeLibrary(store){store.onFolderChange=result=>{if(store===library&&mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('library:changed',{path:store.root,...result});};return store;}
 let canvasCloseReady=false,canvasAllowClose=false;
 let agentRun = null,connectionTest=null;
 const translationRuns=new Map();
@@ -39,10 +40,12 @@ async function start() {
   await agentSettings.load().catch(() => {});
   let config = {};
   try { config = JSON.parse(await readFile(path.join(profile, 'preferences.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const defaultRoot = process.env.MATERIA_LIBRARY_DIR || (app.isPackaged ? path.join(path.dirname(app.getPath('exe')), '文献库') : path.join(appRoot, '.local', 'desktop-library'));
+  const defaultRoot = process.env.MATERIA_LIBRARY_DIR || portableLibraryRoot(appRoot,path.dirname(app.getPath('exe')));
   const previousRoot = app.isPackaged ? path.resolve(path.dirname(app.getPath('exe')), '..', '..', 'Materia-win32-x64', '文献库') : '';
-  const startupRoot = resolveLibraryRoot({envRoot:process.env.MATERIA_LIBRARY_DIR,configuredRoot:config.libraryPath,previousRoot,defaultRoot});
+  const legacyRoots=[previousRoot,path.join(path.dirname(app.getPath('exe')),'文献库'),path.resolve(appRoot,'../../../../Materia-win32-x64/文献库'),path.join(appRoot,'.local','desktop-library')];
+  const startupRoot = await prepareLibraryLocation({envRoot:process.env.MATERIA_LIBRARY_DIR,configuredRoot:config.libraryPath,legacyRoots,defaultRoot});
   library = await new LocalLibrary(startupRoot).init();
+  observeLibrary(library);
   agentHistory = new AgentHistoryFile(library.root);
   canvasStore=new CanvasFile(library.root);
   await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: library.root }, null, 2));
@@ -73,6 +76,9 @@ async function start() {
   handle('library:merge-backup', backup => library.mergeBackup(backup));
   handle('library:read-pdf', id => library.readPdf(id));
   handle('library:info', () => library.info());
+  handle('library:sync-folders',()=>library.syncFolders());
+  handle('library:open-paper-folder',async id=>{const file=await library.pdfPath(id);shell.showItemInFolder(file);});
+  handle('library:open-group-folder',async id=>{const relative=library.data.settings.folderSync?.paths?.[id];if(!relative)throw Error('分组不存在。');const folder=path.resolve(library.root,'papers',relative);if(!folder.startsWith(path.resolve(library.root,'papers')+path.sep))throw Error('分组路径无效。');const result=await shell.openPath(folder);if(result)throw Error(result);});
   handle('study:read',async()=>{const store=library;await store.queue;return{libraryKey:store.root,...store.getStudy()};});
   handle('study:update',payload=>{if(!payload||payload.libraryKey!==library.root)throw new Error('文献库已切换，阅读记录未写入其他文献库。');return library.updateStudy(payload.operation);});
   handle('translation:cancel',id=>translationRuns.get(id)?.abort());
@@ -141,7 +147,7 @@ async function start() {
     await agentHistory.queue;
     const next = await new LocalLibrary(chosen.filePaths[0]).init();
     await writeFile(path.join(profile, 'preferences.json'), JSON.stringify({ libraryPath: next.root }, null, 2));
-    await canvasStore.queue;library = next; agentHistory = new AgentHistoryFile(library.root);canvasStore=new CanvasFile(library.root);return library.info();
+    await canvasStore.queue;library = observeLibrary(next); agentHistory = new AgentHistoryFile(library.root);canvasStore=new CanvasFile(library.root);return library.info();
   });
   handle('library:save-backup', async json => {
     if (typeof json !== 'string' || json.length > 1024 * 1024 * 1024) throw new Error('备份内容过大。');
@@ -162,5 +168,8 @@ async function start() {
     if (!chosen.canceled) await writeFile(chosen.filePath,image);
     return {canceled:chosen.canceled,path:chosen.filePath};
   });
+  let folderSyncBusy=false;
+  const syncFolders=async()=>{if(folderSyncBusy||mainWindow.isDestroyed())return;folderSyncBusy=true;try{await library.syncFolders();}catch(error){console.error('文献文件夹同步：',error.message);}finally{folderSyncBusy=false;}};
+  setInterval(syncFolders,4000).unref();mainWindow.on('focus',syncFolders);
   await mainWindow.loadFile(path.join(appRoot, 'dist', 'index.html'));
 }

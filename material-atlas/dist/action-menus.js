@@ -6,7 +6,7 @@ export function actionMenu(id,label,body,{iconName='more',iconOnly=false,classNa
 let initialized=false;
 export function initActionMenus(){
  if(initialized)return;initialized=true;
- const triggerFor=panel=>document.querySelector('[data-menu-toggle="'+CSS.escape(panel.id)+'"]');
+ const triggerFor=panel=>document.querySelector('[data-menu-toggle="'+CSS.escape(panel.id)+'"],[data-menu-context="'+CSS.escape(panel.id)+'"]');
  const items=panel=>[...panel.querySelectorAll('button:not(:disabled),a[href]')].filter(el=>!el.hidden&&el.getClientRects().length);
  function position(panel,trigger){
   const r=trigger.getBoundingClientRect(),width=panel.offsetWidth,height=panel.offsetHeight;
@@ -14,8 +14,8 @@ export function initActionMenus(){
   const top=r.bottom+height+8<=innerHeight?r.bottom+6:Math.max(8,r.top-height-6);
   panel.style.left=Math.max(8,Math.min(innerWidth-width-8,left))+'px';panel.style.top=Math.max(8,Math.min(innerHeight-height-8,top))+'px';
  }
- function open(trigger,last=false){
-  const panel=document.getElementById(trigger.dataset.menuToggle);if(!panel)return;
+ function open(trigger,last=false,point=null){
+  const panel=document.getElementById(trigger.dataset.menuToggle||trigger.dataset.menuContext);if(!panel)return;
   for(const item of panel.querySelectorAll('button,a[href]')){item.setAttribute('role','menuitem');item.tabIndex=-1;}
   panel.showPopover();
   let section=false,lastSeparator=null;
@@ -24,7 +24,7 @@ export function initActionMenus(){
     else if(!child.hidden&&child.getClientRects().length&&!child.classList.contains('ui-menu-caption'))section=true;
   }
   if(!section&&lastSeparator)lastSeparator.hidden=true;
-  position(panel,trigger);trigger.setAttribute('aria-expanded','true');
+  position(panel,trigger);if(point){panel.style.left=Math.max(8,Math.min(innerWidth-panel.offsetWidth-8,point.x))+'px';panel.style.top=Math.max(8,Math.min(innerHeight-panel.offsetHeight-8,point.y))+'px';}trigger.setAttribute('aria-expanded','true');
   const list=items(panel);(last?list.at(-1):list[0])?.focus({preventScroll:true});
  }
  document.addEventListener('click',event=>{
@@ -32,9 +32,10 @@ export function initActionMenus(){
   if(trigger){event.preventDefault();const panel=document.getElementById(trigger.dataset.menuToggle);if(panel?.matches(':popover-open'))panel.hidePopover();else open(trigger);return;}
   const panel=event.target.closest('.ui-action-popover');if(panel&&event.target.closest('button,a[href]'))queueMicrotask(()=>{if(panel.matches(':popover-open'))panel.hidePopover();});
  },true);
+ document.addEventListener('contextmenu',event=>{const trigger=event.target.closest('[data-menu-context]');if(!trigger)return;event.preventDefault();open(trigger,false,{x:event.clientX,y:event.clientY});},true);
  document.addEventListener('toggle',event=>{const panel=event.target;if(panel.classList?.contains('ui-action-popover'))triggerFor(panel)?.setAttribute('aria-expanded',String(event.newState==='open'));},true);
  document.addEventListener('keydown',event=>{
-  const trigger=event.target.closest('[data-menu-toggle]');if(trigger&&['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();open(trigger,event.key==='ArrowUp');return;}
+  const trigger=event.target.closest('[data-menu-toggle],[data-menu-context]');if(trigger&&(['ArrowDown','ArrowUp'].includes(event.key)||trigger.dataset.menuContext&&(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'))){event.preventDefault();open(trigger,event.key==='ArrowUp');return;}
   const panel=event.target.closest('.ui-action-popover');if(!panel)return;
   const list=items(panel),index=list.indexOf(document.activeElement);let target;
   if(event.key==='ArrowDown')target=list[(index+1)%list.length];

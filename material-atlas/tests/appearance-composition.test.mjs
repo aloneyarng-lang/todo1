@@ -4,10 +4,10 @@ import {cleanThemePreferences,resolveTheme,BUILTIN_THEMES,themePackage,parseThem
 import {setGraphThemeOptions,graphAppearance} from '../dist/graph-appearance.js';
 import {getGraphSymbols,setGraphSymbols} from '../dist/graph-symbols.js';
 import {cleanGraphSettings} from '../dist/graph-settings.js';
-test('explicit glass on/off persists through theme changes and imports without changing exported package design',()=>{
+test('legacy glass switches are retired and every appearance uses the shared glass material',()=>{
  for(const glass of [true,false]){
-  const prefs=cleanThemePreferences({selected:'reimu-day',glass});assert.equal(cleanThemePreferences({...prefs,selected:'graphite'}).glass,glass);
-  const pack=themePackage(resolveTheme({selected:'reimu-night'}));const imported=importThemeFiles(prefs,[{name:'reimu.json',text:pack}],()=> 'custom-shape');assert.equal(imported.glass,glass);assert.ok(!('glass' in parseThemePackage(pack)));
+  const prefs=cleanThemePreferences({selected:'reimu-day',glass});assert.ok(!('glass' in prefs));assert.equal(resolveTheme({...prefs,selected:'graphite'}).ui.style,'glass');
+  const pack=themePackage(resolveTheme({selected:'reimu-night'}));const imported=importThemeFiles(prefs,[{name:'reimu.json',text:pack}],()=> 'custom-shape');assert.ok(!('glass' in imported));assert.equal(resolveTheme(imported).ui.style,'glass');assert.ok(!('glass' in parseThemePackage(pack)));
  }
 });
 test('independent theme geometry brings its symbol artwork and survives settings normalization',()=>{

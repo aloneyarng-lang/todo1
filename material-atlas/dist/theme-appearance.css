@@ -165,5 +165,3 @@ html[data-liquid-glass=true] [data-glass-pressed]::before{opacity:1}
 @media(prefers-reduced-motion:reduce){
   html[data-liquid-glass=true] [data-glass-interactive],html[data-liquid-glass=true] [data-glass-interactive]::before{transition:none}
 }
-
-.theme-glass-switch{display:flex;align-items:center;gap:10px;padding:12px 0;color:var(--ink)}.theme-glass-switch small{color:var(--muted)}

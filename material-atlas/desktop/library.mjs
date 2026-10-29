@@ -18,6 +18,8 @@ import { GRAPH_APPEARANCE_VERSION } from '../dist/graph-appearance.js';
 import { cleanAssociations } from '../dist/associations.js';
 import { seedJournalMetrics } from '../dist/journal-data.js';
 import { cleanThemePreferences } from '../dist/themes.js';
+import {FolderSync} from './folder-sync.mjs';
+import {seedImportActivity,recordImports,mergeImportActivity} from '../dist/import-activity.js';
 
 export function resolveInside(root, relative) {
   const resolved = path.resolve(root, relative);
@@ -30,7 +32,7 @@ export function cleanTags(value) {
 export const cleanNotes = normalizeNotes;
 
 export class LocalLibrary {
-  constructor(root) { this.root = path.resolve(root); this.queue = Promise.resolve(); }
+  constructor(root) { this.root = path.resolve(root); this.queue = Promise.resolve(); this.folders=new FolderSync(this.root); }
   async init() {
     await mkdir(path.join(this.root, 'papers'), { recursive: true });
     await mkdir(path.join(this.root, 'backups'), { recursive: true });
@@ -55,6 +57,16 @@ export class LocalLibrary {
     const metrics = seedJournalMetrics(this.data.settings.journalMetrics || []);
     if (JSON.stringify(metrics) !== JSON.stringify(this.data.settings.journalMetrics)) { this.data.settings.journalMetrics = metrics; await this.save(this.data); }
     if(this.data.settings.translationPreferences?.instant===true){this.data.settings.translationPreferences=cleanTranslationPreferences(this.data.settings.translationPreferences);await this.save(this.data);}
+    const next=structuredClone(this.data);
+    next.settings.importActivity ||= seedImportActivity(next.papers);
+    // The first upgrade exports the existing memberships before reading physical folders.
+    // Afterwards the disk is reconciled first, so Explorer moves win over stale paths.
+    const firstUpgrade=!next.settings.folderSync,moves=firstUpgrade?await this.folders.export(next):[];
+    if(firstUpgrade)await this.folders.preserveLegacyFiles(next);
+    await this.folders.import(next,(input,existing)=>this.preparePaper(input,existing));
+    next.settings.importActivity=recordImports(next.settings.importActivity,next.papers);
+    if(JSON.stringify(next)!==JSON.stringify(this.data))await this.save(next);
+    await this.folders.finish(moves,this.data);
     return this;
   }
   async save(data) {
@@ -69,12 +81,25 @@ export class LocalLibrary {
     this.data = data;
   }
   mutate(fn) {
-    const operation = this.queue.then(async () => { const next = structuredClone(this.data); const result = await fn(next); await this.save(next); return result; });
+    const operation = this.queue.then(async () => {
+      const next=structuredClone(this.data),disk=await this.folders.import(next,(input,existing)=>this.preparePaper(input,existing));
+      const previous=[...next.papers];const result=await fn(next);
+      const retained=new Set(next.papers.map(p=>p.id)),ignored=new Set(next.settings.folderSync?.ignored||[]);
+      for(const paper of previous)if(paper.fingerprint&&(!retained.has(paper.id)||next.papers.find(p=>p.id===paper.id)?.fingerprint!==paper.fingerprint))ignored.add(paper.fingerprint);
+      next.settings.folderSync={...next.settings.folderSync,ignored:[...ignored]};
+      next.settings.importActivity=recordImports(next.settings.importActivity||seedImportActivity(previous),next.papers);
+      const moves=await this.folders.export(next);await this.save(next);await this.folders.finish(moves,next);if(disk.changed)this.onFolderChange?.({changed:true,added:disk.added.length});return result;
+    });
     this.queue = operation.catch(() => {}); return operation;
+  }
+  syncFolders(){
+    const operation=this.queue.then(async()=>{const next=structuredClone(this.data),result=await this.folders.import(next,(input,existing)=>this.preparePaper(input,existing));const summary={changed:result.changed,added:result.added.length};if(result.changed){next.settings.importActivity=recordImports(next.settings.importActivity,next.papers);await this.save(next);this.onFolderChange?.(summary);}return summary;});
+    this.queue=operation.catch(()=>{});return operation;
   }
   getPapers() { return this.data.papers.map(p => materializePaper({ ...p, file: p.pdfPath ? { desktop: true, size: p.size } : null })); }
   getSetting(key) { return this.data.settings[key]; }
   async setSetting(key, value) {
+    const previousGroups=key==='collections'?structuredClone(this.data.settings.collections||[]):null;
     if (!['collections', 'notes', 'mode', 'journalMetrics', 'comparisonSelection', 'comparisonState', 'graphLayout', 'chartPreferences', 'graphPreferences', 'graphAssociations', 'themePreferences', 'readerState', 'readerDrafts', 'vocabulary', 'translationCache', 'translationPreferences'].includes(key)) throw new Error('不支持的文献库设置。');
     if(key==='vocabulary')value=cleanVocabulary(value);
     if(key==='translationCache')value=cleanTranslationCache(value);
@@ -89,7 +114,13 @@ export class LocalLibrary {
     if(key==='graphLayout')value=cleanLayout(value);
     if(key==='notes')value=cleanNotes(value);
     if(key==='journalMetrics')value=Array.isArray(value) && value.length ? parseMetrics(JSON.stringify(value)) : [];
-    return this.mutate(data => { data.settings[key] = value; });
+    return this.mutate(data => {
+      if(key==='collections'&&Array.isArray(value)){
+        const previous=new Map(previousGroups.map(c=>[c.id,c])),requested=new Map(value.map(c=>[c.id,c]));
+        const merged=(data.settings.collections||[]).filter(c=>!previous.has(c.id)||requested.has(c.id)).map(c=>requested.has(c.id)&&JSON.stringify(requested.get(c.id))!==JSON.stringify(previous.get(c.id))?requested.get(c.id):c);
+        for(const group of value)if(!merged.some(c=>c.id===group.id))merged.push(group);data.settings.collections=merged;
+      }else data.settings[key] = value;
+    });
   }
   async preparePaper(input, existing) {
     if (!input || typeof input.id !== 'string' || !/^[a-z\d_-]{1,120}$/i.test(input.id) || typeof input.title !== 'string' || !input.title.trim()) throw new Error('文献信息格式不正确。');
@@ -103,7 +134,8 @@ export class LocalLibrary {
     if (input.fileBytes) {
       const bytes = Buffer.from(input.fileBytes);
       if (!bytes.subarray(0, 1024).toString('latin1').includes('%PDF-')) throw new Error('文件不是有效的 PDF。');
-      paper.size = bytes.length; paper.fingerprint = createHash('sha256').update(bytes).digest('hex'); paper.pdfPath = `papers/${paper.fingerprint}.pdf`;
+      paper.size = bytes.length; paper.fingerprint = createHash('sha256').update(bytes).digest('hex'); paper.pdfPath = `.imports/${paper.fingerprint}.pdf`;
+      await mkdir(path.join(this.root,'.imports'),{recursive:true});
       const destination = resolveInside(this.root, paper.pdfPath);
       const temp = destination + `.${randomUUID()}.tmp`;
       await writeFile(temp, bytes, { flag: 'wx' }); await rename(temp, destination);
@@ -158,13 +190,13 @@ export class LocalLibrary {
       if (batch.id !== id || batch.format !== 'materia-removal' || !Array.isArray(batch.papers) || batch.papers.length > 10000) throw new Error('移除记录无法读取。');
       const existing = new Set(data.papers.map(paper => paper.id));
       for (const paper of batch.papers) if (!existing.has(paper.id)) {
-        await access(resolveInside(this.root, paper.pdfPath));
+        try{await access(resolveInside(this.root,paper.pdfPath));}catch(error){if(error.code!=='ENOENT')throw error;const file=(await this.folders.scan()).files.find(f=>f.fingerprint===paper.fingerprint);if(!file)throw new Error('恢复记录中的 PDF 不在文献库内，原有录入信息仍保留在 .trash。');paper.pdfPath=file.relative;}
         const prepared = await this.preparePaper(paper, paper); delete paper.measurements; Object.assign(paper, prepared);
       }
       return { count: restoreRemoval(data, batch).length };
     });
   }
-  async pdfPath(id) { const paper = this.data.papers.find(p => p.id === id); if (!paper?.pdfPath) throw new Error('找不到 PDF 文件。'); const file = resolveInside(this.root, paper.pdfPath); await access(file); return file; }
+  async pdfPath(id) { let paper=this.data.papers.find(p=>p.id===id);if(!paper?.pdfPath)throw new Error('找不到 PDF 文件。');let file=resolveInside(this.root,paper.pdfPath);try{await access(file);}catch(error){if(error.code!=='ENOENT')throw error;await this.syncFolders();paper=this.data.papers.find(p=>p.id===id);file=resolveInside(this.root,paper.pdfPath);try{await access(file);}catch{throw new Error('PDF 已被移出文献库；文献信息仍保留。将文件放回 papers 文件夹后会自动重新关联。');}}return file; }
   async readPdf(id) { return new Uint8Array(await readFile(await this.pdfPath(id))); }
   getStudy(){return cleanStudy({vocabulary:this.data.settings.vocabulary,cache:this.data.settings.translationCache,preferences:this.data.settings.translationPreferences});}
   updateStudy(operation){return this.mutate(data=>applyStudyOperation(data.settings,operation));}
@@ -184,10 +216,11 @@ export class LocalLibrary {
       data.settings.journalMetrics = mergeMetrics(data.settings.journalMetrics || [], backup.journalMetrics || []);
       if(materialGroups){const current=cleanMaterialSelection(data.settings.comparisonState);data.settings.comparisonState=cleanMaterialSelection({...current,groups:mergeMaterialGroups(current.groups||[],materialGroups)});}
       if(study){data.settings.vocabulary=mergeVocabulary(data.settings.vocabulary,study.vocabulary);let cache=data.settings.translationCache||[];for(const row of study.cache)cache=saveTranslationCache(cache,row);data.settings.translationCache=cache;data.settings.translationPreferences=study.preferences;}
+      data.settings.importActivity=mergeImportActivity(data.settings.importActivity,backup.importActivity||seedImportActivity(backup.papers),backup.papers);
     });
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1, materialGroupsVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, folderSyncVersion:1,importActivityVersion:1,studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1, materialGroupsVersion: 1 };
   }
 }

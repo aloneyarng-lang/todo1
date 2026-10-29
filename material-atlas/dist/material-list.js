@@ -1,6 +1,7 @@
 import {materialInventory, resolveMaterialSelection} from './material-selection.js';
 import {materialListEntries, filterMaterialList, assignMaterialGroup, cleanMaterialGroups} from './material-list-model.js';
 import {icon} from './icons.js';
+import {actionMenu} from './action-menus.js';
 
 export function createMaterialList(config) {
   const $ = selector => document.querySelector(selector), esc = config.escape;
@@ -16,7 +17,7 @@ export function createMaterialList(config) {
     const host = $('#material-list');
     host.innerHTML = `<div class="material-library-tools"><label class="material-library-search">${icon('search')}<input id="material-list-query" type="search" maxlength="1000" placeholder="搜索材料、成分、性能参数或来源文献…" value="${esc(query)}" aria-label="搜索材料"></label><label class="material-library-only"><input id="material-list-only-selected" type="checkbox" ${onlySelected ? 'checked' : ''}>只看已选</label><button class="outline-button" data-material-list-action="create-group">${icon('plus')}新建分组</button></div>
       <div class="material-library-groups" role="group" aria-label="材料分组"></div>
-      <div class="material-library-selection"><span id="material-list-selected-count" role="status"></span><button class="text-button" data-material-list-action="select-results">全选当前结果</button><button class="text-button" data-material-list-action="clear">清空材料选择</button><button class="outline-button" data-material-list-action="assign-group">${icon('folder')}归入 / 移出分组</button><button class="outline-button" data-material-list-action="table">参数对照</button><button class="primary" data-material-list-action="chart">${icon('chart')}对比与作图</button></div>
+      <div class="material-library-selection"><span id="material-list-selected-count" role="status"></span>${actionMenu('material-organize-menu','整理','<button data-material-list-action="select-results">全选当前结果</button><button data-material-list-action="clear">清空选择</button><hr><button data-material-list-action="assign-group">归入 / 移出分组…</button><button data-material-list-action="table">参数对照</button>',{iconName:'folder'})}<button class="primary" data-material-list-action="chart">${icon('chart')}对比与作图</button></div>
       <div class="material-library-status"><span data-material-save-status role="status"></span><button class="text-button" data-material-retry hidden>重试保存</button></div>
       <p id="material-list-result-count" class="material-library-count"></p><div id="material-list-rows"></div><button class="outline-button list-load-more" data-material-list-action="more" hidden>显示更多材料</button>`;
     refreshSelection();

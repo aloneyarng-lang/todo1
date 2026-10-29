@@ -23,7 +23,7 @@ export function createPaperActions(config) {
     close();origin=row;config.selectPaper(id);
     const rows=records(targets),multi=rows.length>1,allStar=rows.every(p=>p.favorite),allPlot=targets.every(id=>config.getSelection().has(id));
     const hidden=rows.filter(p=>!config.getVisible().some(v=>v.id===p.id)).length;
-    menu.innerHTML=`<div class="paper-context-panel" role="menu" aria-label="文献快捷操作"><header><strong>${multi?`当前选中 ${rows.length} 篇文献`:esc(rows[0].title)}</strong><small>${multi?`${hidden?`含 ${hidden} 篇不在当前筛选结果中`:'操作以下已选文献'}`:'仅操作这篇文献'}</small></header>${!multi?item('read','阅读 PDF 与批注',{disabled:!config.hasPDF(rows[0]),extra:!config.hasPDF(rows[0])?'title="尚未附上 PDF 文件"':''}):''}${item('collections','收藏夹 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}${item('star',allStar?'取消星标':'加入星标「我的收藏」')}${item('edit',multi?'批量修改标签…':'编辑文献信息 / 标签…')}${item('plot',allPlot?'从作图选择中移除':'加入作图选择')}<hr>${item('more','更多 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}<hr>${item('remove',`移除${multi?` ${rows.length} 篇`:''}文献…`,{danger:true})}</div><div class="paper-context-submenu paper-context-panel" role="menu" hidden></div>`;
+    menu.innerHTML=`<div class="paper-context-panel" role="menu" aria-label="文献快捷操作"><header><strong>${multi?`当前选中 ${rows.length} 篇文献`:esc(rows[0].title)}</strong><small>${multi?`${hidden?`含 ${hidden} 篇不在当前筛选结果中`:''}`:''}</small></header>${!multi?item('read','阅读 PDF 与批注',{disabled:!config.hasPDF(rows[0]),extra:!config.hasPDF(rows[0])?'title="尚未附上 PDF 文件"':''}):''}${item('collections','分组 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}${item('star',allStar?'取消星标':'加星标')}${item('edit',multi?'批量修改标签…':'编辑信息…')}${item('plot',allPlot?'从作图选择中移除':'加入作图选择')}<hr>${item('more','更多 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}<hr>${item('remove',`移除${multi?` ${rows.length} 篇`:''}文献…`,{danger:true})}</div><div class="paper-context-submenu paper-context-panel" role="menu" hidden></div>`;
     menu.hidden=false;clampPanel(menus()[0],x,y);focusFirst(menus()[0]);
   }
   function openSub(kind){
@@ -31,10 +31,10 @@ export function createPaperActions(config) {
     main.querySelectorAll('[aria-expanded]').forEach(b=>b.setAttribute('aria-expanded',String(b.dataset.paperCommand===kind)));
     const rows=records(targets);
     if(kind==='collections'){
-      panel.setAttribute('aria-label','选择收藏夹');
-      panel.innerHTML=`<header><strong>归入收藏夹 · ${rows.length} 篇</strong><small>每篇归入一个收藏夹，星标独立保留</small></header><div class="paper-folder-menu-list">${config.getCollections().map(c=>item('folder',`${rows.every(p=>p.collection===c.id)?'✓ ':''}${esc(c.name)}`,{extra:`data-folder-id="${esc(c.id)}"`})).join('')||'<p class="paper-menu-empty">还没有收藏夹</p>'}</div><hr>${item('new-folder','＋ 新建收藏夹并加入…')}${item('detach-folder','移出收藏夹',{disabled:rows.every(p=>!p.collection)})}`;
+      panel.setAttribute('aria-label','选择分组');
+      panel.innerHTML=`<header><strong>归入分组 · ${rows.length} 篇</strong><small></small></header><div class="paper-folder-menu-list">${config.getCollections().map(c=>item('folder',`${rows.every(p=>p.collection===c.id)?'✓ ':''}${esc(c.name)}`,{extra:`data-folder-id="${esc(c.id)}"`})).join('')||'<p class="paper-menu-empty">还没有分组</p>'}</div><hr>${item('new-folder','＋ 新建分组并加入…')}${item('detach-folder','移出分组',{disabled:rows.every(p=>!p.collection)})}`;
     }else{
-      panel.setAttribute('aria-label','更多文献操作');panel.innerHTML=`${rows.length===1?item('notes','查看 / 添加笔记…'):''}${item('copy-title',rows.length>1?'复制所选标题':'复制标题')}${rows.length===1?item('copy-doi','复制 DOI',{disabled:!rows[0].doi}):''}`;
+      panel.setAttribute('aria-label','更多文献操作');panel.innerHTML=`${rows.length===1?item('notes','文献笔记…')+item('parameters','材料与参数…'):''}${item('copy-title',rows.length>1?'复制所选标题':'复制标题')}${rows.length===1?item('copy-doi','复制 DOI',{disabled:!rows[0].doi}):''}${rows.length===1&&config.locate?'<hr>'+item('locate','在文件夹中显示'):''}${rows.length===1&&origin?.matches('.paper-node')?'<hr>'+item('hide','从当前星图隐藏'):''}`;
     }
     panel.hidden=false;const r=main.getBoundingClientRect(),button=main.querySelector(`[data-paper-command="${kind}"]`).getBoundingClientRect();
     clampPanel(panel,r.right+panel.offsetWidth+12<innerWidth?r.right+5:r.left-panel.offsetWidth-5,button.top);focusFirst(panel);
@@ -50,17 +50,17 @@ export function createPaperActions(config) {
       // Clear busy before the app closes the modal, so the normal save guard allows it.
       busy=false;config.closeModal();
       const name=options.groupMode==='new'?String(options.groupName).trim():config.getCollections().find(c=>c.id===options.collection)?.name;
-      config.toast(!result.count?'这些文献已经在该收藏夹中。':name?`已将 ${result.count} 篇文献归入「${name}」。`:`已将 ${result.count} 篇文献移出收藏夹，文献仍保留在全部文献中。`);
+      config.toast(!result.count?'这些文献已经在该分组中。':name?`已将 ${result.count} 篇文献归入「${name}」。`:`已将 ${result.count} 篇文献移出分组，文献仍保留在全部文献中。`);
     });
   }
   function summary(ids){const rows=records(ids);return `<div class="collection-targets">${rows.slice(0,3).map(p=>`<p>${esc(p.title)}</p>`).join('')}${rows.length>3?`<small>以及另外 ${rows.length-3} 篇</small>`:''}</div>`;}
   function picker(ids){
     if(!config.canEdit())return;close();modalIds=[...ids];const rows=records(ids);if(!rows.length)return;
-    config.showModal(rows.length>1?`归入收藏夹 · ${rows.length} 篇`:'加入 / 更改收藏夹','每篇文献归入一个主题收藏夹；星标「我的收藏」独立保留。',`${summary(ids)}<input id="collection-picker-search" class="collection-picker-search" type="search" aria-label="搜索收藏夹" placeholder="搜索收藏夹…"><div id="collection-picker-list" class="collection-picker-list">${config.getCollections().map(c=>`<button data-collection-command="choose" data-folder-id="${esc(c.id)}"><span>${esc(c.name)}</span><small>${rows.every(p=>p.collection===c.id)?'✓ 当前收藏夹':`${config.getPapers().filter(p=>p.collection===c.id).length} 篇`}</small></button>`).join('')||'<p class="help-inline">还没有收藏夹，先创建一个研究主题。</p>'}</div><p id="collection-picker-empty" class="help-inline" hidden>没有匹配的收藏夹，可新建并加入。</p><div class="collection-picker-footer"><button class="outline-button" data-collection-command="create">＋ 新建收藏夹并加入</button><button class="text-button" data-collection-command="detach" ${rows.every(p=>!p.collection)?'disabled':''}>移出收藏夹</button></div><p class="help-inline">移出只改变归属，PDF、性能参数和笔记保留。</p>`,'collection-picker');
+    config.showModal(rows.length>1?`归入分组 · ${rows.length} 篇`:'加入 / 更改分组','',`${summary(ids)}<input id="collection-picker-search" class="collection-picker-search" type="search" aria-label="搜索分组" placeholder="搜索分组…"><div id="collection-picker-list" class="collection-picker-list">${config.getCollections().map(c=>`<button data-collection-command="choose" data-folder-id="${esc(c.id)}"><span>${esc(c.name)}</span><small>${rows.every(p=>p.collection===c.id)?'✓ 当前分组':`${config.getPapers().filter(p=>p.collection===c.id).length} 篇`}</small></button>`).join('')||'<p class="help-inline">还没有分组，先创建一个研究主题。</p>'}</div><p id="collection-picker-empty" class="help-inline" hidden>没有匹配的分组，可新建并加入。</p><div class="collection-picker-footer"><button class="outline-button" data-collection-command="create">＋ 新建分组并加入</button><button class="text-button" data-collection-command="detach" ${rows.every(p=>!p.collection)?'disabled':''}>移出分组</button></div><p class="help-inline"></p>`,'collection-picker');
   }
   function create(ids){
     if(!config.canEdit())return;close();modalIds=[...ids];
-    config.showModal(ids.length?'新建收藏夹并加入文献':'新建收藏夹',ids.length?`创建后归入当前选中的 ${ids.length} 篇文献。`:'用研究主题整理文献。',`<form id="quick-collection-form">${ids.length?summary(ids):''}<label class="form-field">收藏夹名称<input name="name" required maxlength="80" placeholder="例如：高熵合金 · 强化机制" autofocus></label>${ids.length?`<label class="collection-assign-choice"><input name="assign" type="checkbox" checked>创建并加入这 ${ids.length} 篇文献</label>`:''}<div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button type="submit" class="primary">${ids.length?'创建并加入':'创建收藏夹'}</button></div></form>`,'collection-create');
+    config.showModal(ids.length?'新建分组并加入文献':'新建分组',ids.length?`创建后归入当前选中的 ${ids.length} 篇文献。`:'用研究主题整理文献。',`<form id="quick-collection-form">${ids.length?summary(ids):''}<label class="form-field">分组名称<input name="name" required maxlength="80" placeholder="例如：高熵合金 · 强化机制" autofocus></label>${ids.length?`<label class="collection-assign-choice"><input name="assign" type="checkbox" checked>创建并加入这 ${ids.length} 篇文献</label>`:''}<div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button type="submit" class="primary">${ids.length?'创建并加入':'创建分组'}</button></div></form>`,'collection-create');
   }
   menu.addEventListener('click',async event=>{
     event.stopPropagation();const button=event.target.closest('[data-paper-command]');if(!button||button.disabled)return;
@@ -73,6 +73,9 @@ export function createPaperActions(config) {
     if(command==='read')return run(()=>config.read(ids[0]),false);
     if(command==='edit')return config.edit(ids);
     if(command==='notes')return config.notes(ids[0]);
+    if(command==='parameters')return config.parameters?.(ids[0]);
+    if(command==='locate')return run(()=>config.locate(ids[0]));
+    if(command==='hide')return config.hide?.(ids[0]);
     if(command==='remove')return config.remove(ids);
     if(command==='star')return run(async()=>{await config.star(ids,!rows.every(p=>p.favorite));await config.reload();config.toast(`${ids.length} 篇文献${rows.every(p=>p.favorite)?'已取消星标':'已加入星标「我的收藏」'}。`);});
     if(command==='plot')return run(async()=>{const next=new Set(config.getSelection()),remove=ids.every(id=>next.has(id));ids.forEach(id=>remove?next.delete(id):next.add(id));await config.selectComparison([...next]);config.toast(`${ids.length} 篇文献${remove?'已移出':'已加入'}作图选择。`);});
@@ -87,7 +90,7 @@ export function createPaperActions(config) {
   document.addEventListener('keydown',event=>{
     if(menu.hidden){
       if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&!event.target.closest('input,textarea,select,[contenteditable=true]')){
-        const row=event.target.closest('#paper-list .paper-row[data-select]');if(row){event.preventDefault();event.stopImmediatePropagation();const r=row.getBoundingClientRect();open(row.dataset.select,r.left+40,r.top+25,row);}
+        const row=event.target.closest('#paper-list .paper-row[data-select],.paper-node[data-paper-id]');if(row){event.preventDefault();event.stopImmediatePropagation();const r=row.getBoundingClientRect();open(row.dataset.select||row.dataset.paperId,r.left+40,r.top+25,row);}
       }
       return;
     }
@@ -118,7 +121,7 @@ export function createPaperActions(config) {
     const form=event.target,fields=new FormData(form),name=String(fields.get('name')||'').trim();if(!name)return;
     const ids=fields.has('assign')?[...modalIds]:[];
     if(ids.length)assign(ids,{groupMode:'new',groupName:name});
-    else run(async()=>{await config.createEmpty(name);await config.reload();busy=false;config.closeModal();config.toast(`已创建收藏夹「${name}」。`);});
+    else run(async()=>{await config.createEmpty(name);await config.reload();busy=false;config.closeModal();config.toast(`已创建分组「${name}」。`);});
   });
-  return {picker,create,close,detach:ids=>assign(ids,{groupMode:'set',collection:''}),isBusy:()=>busy};
+  return {open,picker,create,close,detach:ids=>assign(ids,{groupMode:'set',collection:''}),isBusy:()=>busy};
 }

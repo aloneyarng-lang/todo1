@@ -1,3 +1,5 @@
+import {createGroupActions} from './group-actions.js';
+import {activityHTML} from './import-activity.js';
 import {createResearchCanvas} from './research-canvas.js';
 import {createMaterialList} from './material-list.js';
 import { paperMaterials, paperMeasurements, normalizePaperMaterials } from './materials.js';
@@ -5,7 +7,7 @@ import { relatedPaperGroups, relatedPaperSections } from './related-papers.js';
 import {icon,hydrateIcons} from './icons.js';
 import {actionMenu,initActionMenus} from './action-menus.js';
 import { createPDFReader } from './reader.js';
-import { getPapers, putPaper, putPapers, deletePaper, deletePapers, restorePapers, bulkEdit, getSetting, setSetting, normalizeTags, bytesLabel, createBackup, readBackup, mergeBackup } from './storage.js';
+import { getPapers, putPaper, putPapers, deletePaper, deletePapers, restorePapers, bulkEdit, getSetting, setSetting, normalizeTags, bytesLabel, createBackup, readBackup, mergeBackup, getImportActivity } from './storage.js';
 import { PALETTE } from './palette.js';
 import { createBatchImporter } from './batch-import.js';
 import { createComparison } from './comparison.js';
@@ -41,6 +43,7 @@ let batch, comparison, materialList, performanceEditor, bulkEditor, paperActions
 let layoutTimer, graphPreferenceTimer, switchingLibrary = false;
 let pendingRemovalIds = [], removalBusy = false, lastRemoval = null;
 let activeObjectURLs = new Set();
+let groupActions,settingsActivity;
 let searchTimer;
 
 initActionMenus();
@@ -52,8 +55,15 @@ function visiblePapers() {
 }
 
 const map = new StarMap($('#star-map'), {
+  onNaturalLayoutState:({busy,canUndo,count})=>{
+    for(const button of document.querySelectorAll('[data-action="graph-arrange"],[data-action="graph-relayout"],[data-action="graph-arrange-all"]'))button.disabled=busy||!count;
+    for(const button of document.querySelectorAll('[data-action="graph-arrange-undo"]'))button.disabled=busy||!canUndo;
+    const button=$('#graph-arrange');if(button){button.setAttribute('aria-busy',String(busy));button.title=busy?'正在整理星图…':'自然整理星图（右键查看更多）';}
+    const status=$('#graph-arrange-status');if(status)status.textContent=busy?'正在自然整理星图':'';
+  },
   onRelation: id => associationController.inspect(id), onRemoveAssociation: id => associationController.remove(id).catch(error=>toast(error.message,true)),
   onHide: id => { state.hiddenIds.add(id); render(); },
+  onPaperMenu:(id,event,node)=>paperActions?.open(id,event.clientX,event.clientY,node),
 
   onStats: stats => { $('#network-stats').textContent = `${stats.papers} 篇文献 · ${stats.tags} 个关联节点 · ${stats.edges} 条连线${stats.omittedTags ? ` · 另有 ${stats.omittedTags} 个标签未展示` : ''}`; },
   onLayout: positions => { clearTimeout(layoutTimer); if (!state.ready || switchingLibrary) return; layoutTimer = setTimeout(() => { if (!switchingLibrary) setSetting('graphLayout', positions).catch(error => toast(`布局未保存：${error.message}`, true)); }, 400); },
@@ -104,12 +114,12 @@ function render() {
   $('#storage-usage').textContent = bytesLabel(state.papers.reduce((sum, p) => sum + (p.file?.size || p.size || 0), 0));
   $('.local-indicator').innerHTML = `<i></i>${state.storageError ? '存储不可用' : '已在本地保存'}`;
   if (native) { $('.storage-info > span:nth-child(2)').textContent = '文件夹文献库'; $('.storage-info').title = state.desktopInfo?.path || ''; }
-  const navTitle = state.collection ? folders.find(c => c.id === state.collection)?.name || '收藏夹' : ({ all: '文献星图', library: '全部文献', favorites: '我的收藏 · 星标', recent: '最近添加' }[state.nav]);
+  const navTitle = state.collection ? folders.find(c => c.id === state.collection)?.name || '分组' : ({ all: '文献星图', library: '全部文献', favorites: '星标文献', recent: '最近添加' }[state.nav]);
   $('#breadcrumb-current').textContent = navTitle;
-  $('#page-title').innerHTML = `${escape(navTitle)}<span class="title-period">.</span>`;
+  $('#page-title').textContent = navTitle;
   $('#page-description').textContent = state.collection ? '把同一个研究主题，收进有序的坐标。' : ({ all: '让独立的阅读，在这里彼此连接。', library: '每一篇文献，都有迹可循。', favorites: '留住那些让你停下思考的阅读。', recent: '新的阅读，新的研究坐标。' }[state.nav]);
   document.querySelectorAll('[data-nav]').forEach(button => { button.classList.toggle('active', !state.collection && button.dataset.nav === state.nav); button.setAttribute('aria-current', !state.collection && button.dataset.nav === state.nav ? 'page' : 'false'); });
-  $('#collection-list').innerHTML = folders.length ? folders.map(c => `<button class="collection-item ${state.collection === c.id ? 'active' : ''}" data-collection="${escape(c.id)}"><i class="collection-dot" style="background:${/^#[\da-f]{6}$/i.test(c.color) ? c.color : PALETTE[0]}"></i><span>${escape(c.name)}</span><small>${all.filter(p => p.collection === c.id).length}</small></button>`).join('') : '<p class="empty-folders">建立你的第一个研究主题</p>';
+  $('#collection-list').innerHTML = folders.length ? folders.map(c => `<button class="collection-item ${state.collection === c.id ? 'active' : ''}" data-collection="${escape(c.id)}"><i class="collection-dot" style="background:${/^#[\da-f]{6}$/i.test(c.color) ? c.color : PALETTE[0]}"></i><span>${escape(c.name)}</span><small>${all.filter(p => p.collection === c.id).length}</small></button>`).join('') : '<p class="empty-folders">暂无文献分组</p>';
   $('#library-location').title = state.desktopInfo?.path || '本地文献库';
   $('.network-header-controls [data-action="associations"]').hidden=state.view!=='graph';$('#toggle-local').hidden=state.view!=='graph';
   $('#graph-caption').textContent = state.view==='materials'?'材料列表':state.view==='list'?'文献列表':state.tag ? `# ${state.tag}` : state.collection ? navTitle : '研究星图';
@@ -126,7 +136,7 @@ function render() {
   $('#sort-order').hidden = materialView;
   $('.quick-filters').hidden = materialView;
   if (materialView) $('#parameter-filter-summary').hidden = true;
-  $('#network-stats').hidden = materialView;
+  $('#network-stats').hidden = state.view !== 'graph';
   $('#filter-button').hidden = materialView;
   $('.map-footer').hidden = materialView;
   const filterCount = state.filters.excludeTags.length + Object.entries(state.filters).filter(([key, value]) => !['tags', 'excludeTags', 'tagMode', 'parameterName', 'parameterUnit'].includes(key) && Boolean(value)).length;
@@ -177,9 +187,9 @@ function renderParameterSummary(filtered) {
 
 function documentArt() { return '<div class="document-art" aria-hidden="true"><i></i><i></i><i></i><i></i><span>PDF</span></div>'; }
 function renderList(filtered) {
-  $('#paper-list').innerHTML = filtered.length ? `<div class="list-selection-toolbar" ${state.filters.parameterName?'hidden':''}><button class="text-button" data-action="select-filtered">全选当前结果（${filtered.length} 篇）</button><span>勾选文献后可批量整理或作图 · 支持右键</span></div>` + filtered.slice(0,state.listLimit).map(p=>{
+  $('#paper-list').innerHTML = filtered.length ? `<div class="list-selection-toolbar" ${state.filters.parameterName?'hidden':''}><button class="text-button" data-action="select-filtered">全选当前结果（${filtered.length} 篇）</button><span></span></div>` + filtered.slice(0,state.listLimit).map(p=>{
     const metric=impactOf(p,state.journalMetrics,state.filters.impactYear);
-    return `<article class="paper-row ${p.id===state.selected?'selected':''}" data-select="${escape(p.id)}" tabindex="0" role="button" aria-label="查看 ${escape(p.title)}"><label class="compare-checkbox" title="选择文献，用于收藏夹、标签、作图或批量移除"><input type="checkbox" data-compare-id="${escape(p.id)}" ${state.compareIds.has(p.id)?'checked':''} aria-label="选择文献 ${escape(p.title)}"></label>${documentArt()}<div class="paper-row-content"><h3>${escape(p.title)}</h3><div class="list-paper-badges"><span class="impact-badge ${metric?'':'missing'}">${metric?`IF ${metric.value} · ${escape(metric.year || '年份未填')}`:'IF 未填写'}</span><span>${paperMaterials(p).length} 个材料 · ${paperMeasurements(p).length} 条性能参数</span><span>${notes.count('paper',p.id)} 条笔记</span></div><p>${escape([p.journal,p.year,p.authors].filter(Boolean).join(' · ') || p.filename)}</p>${state.filters.parameterName?parameterRecordPreview(p,state.filters.parameterName,state.filters.parameterUnit,escape):''}<div class="tags">${p.tags.slice(0,4).map(t=>`<span class="tag">${escape(t)}</span>`).join('')}</div>${p.collection?`<span class="paper-row-folder">▱ ${escape(collections().find(c=>c.id===p.collection)?.name||'收藏夹')}</span>`:''}</div><button class="icon-button paper-row-menu" data-paper-menu aria-label="文献快捷操作" title="文献快捷操作（也可右键）">${icon('more')}</button><button class="icon-button ${p.favorite?'favorite-on':''}" data-favorite="${escape(p.id)}" aria-label="${p.favorite?'取消星标':'加入星标我的收藏'}" title="星标与主题收藏夹独立"><span data-icon="star"></span></button></article>`;
+    return `<article class="paper-row ${p.id===state.selected?'selected':''}" data-select="${escape(p.id)}" tabindex="0" role="button" aria-label="查看 ${escape(p.title)}"><label class="compare-checkbox" title="选择文献，用于分组、标签、作图或批量移除"><input type="checkbox" data-compare-id="${escape(p.id)}" ${state.compareIds.has(p.id)?'checked':''} aria-label="选择文献 ${escape(p.title)}"></label>${documentArt()}<div class="paper-row-content"><h3>${escape(p.title)}</h3><div class="list-paper-badges">${metric?`<span class="impact-badge">IF ${metric.value} · ${escape(metric.year || '')}</span>`:''}${paperMaterials(p).length?`<span>${paperMaterials(p).length} 个材料 · ${paperMeasurements(p).length} 条参数</span>`:''}${notes.count('paper',p.id)?`<span>${notes.count('paper',p.id)} 条笔记</span>`:''}</div><p>${escape([p.journal,p.year,p.authors].filter(Boolean).join(' · ') || p.filename)}</p>${state.filters.parameterName?parameterRecordPreview(p,state.filters.parameterName,state.filters.parameterUnit,escape):''}<div class="tags">${p.tags.slice(0,4).map(t=>`<span class="tag">${escape(t)}</span>`).join('')}</div>${p.collection?`<span class="paper-row-folder">▱ ${escape(collections().find(c=>c.id===p.collection)?.name||'分组')}</span>`:''}</div><button class="icon-button paper-row-menu" data-paper-menu aria-label="文献快捷操作" title="文献快捷操作（也可右键）">${icon('more')}</button></article>`;
   }).join('') + (filtered.length>state.listLimit?`<button class="outline-button list-load-more" data-action="more-list">显示更多（剩余 ${filtered.length-state.listLimit} 篇）</button>`:'') : papers().length ? '<div class="list-empty"><strong>没有匹配的文献</strong><p>可清除标题搜索、调整条件，或切换性能参数。</p><button class="outline-button" data-action="parameter-index">切换性能参数</button></div>' : '<div class="list-empty"><strong>从第一批文献开始</strong><button class="outline-button" data-action="import">批量导入 PDF + Markdown</button></div>';
 }
 
@@ -191,25 +201,25 @@ function renderDetail() {
   const authors = normalizeAuthors(p.authorDetails || []), metric = impactOf(p, state.journalMetrics, state.filters.impactYear);
   const related = relatedPaperGroups(papers(),p);
   panel.innerHTML = `
-    <div class="detail-top"><span>文献详情 / PAPER</span><div class="detail-actions"><button class="icon-button ${p.favorite ? 'favorite-on' : ''}" data-action="favorite" aria-label="${p.favorite ? '取消星标' : '加入星标我的收藏'}" title="星标我的收藏，与主题收藏夹独立"><span data-icon="star"></span></button>${actionMenu('detail-paper-menu','文献操作','<button type="button" data-action="edit">'+icon('edit')+'编辑文献信息 / 标签</button><button type="button" data-action="toggle-compare">'+icon('chart')+(state.compareIds.has(p.id)?'从对比选择中移除':'加入性能对比')+'</button><hr><button type="button" data-action="download-pdf">'+icon('download')+'另存 PDF</button><button type="button" class="danger" data-action="delete">'+icon('trash')+'移除文献…</button>',{iconOnly:true,className:'icon-button'})}<button class="icon-button detail-close-button" data-action="toggle-detail" aria-label="收起文献详情" title="收起文献详情"><span data-icon="close"></span></button></div></div>
+    <div class="detail-top"><span>文献详情</span><div class="detail-actions"><button class="icon-button ${p.favorite ? 'favorite-on' : ''}" data-action="favorite" aria-label="${p.favorite ? '取消星标' : '加入星标我的收藏'}" title="星标我的收藏，与主题分组独立"><span data-icon="star"></span></button>${actionMenu('detail-paper-menu','文献操作','<button type="button" data-action="edit">'+icon('edit')+'编辑文献信息 / 标签</button><button type="button" data-action="toggle-compare">'+icon('chart')+(state.compareIds.has(p.id)?'从对比选择中移除':'加入性能对比')+'</button><hr><button type="button" data-action="download-pdf">'+icon('download')+'另存 PDF</button><button type="button" class="danger" data-action="delete">'+icon('trash')+'移除文献…</button>',{iconOnly:true,className:'icon-button'})}<button class="icon-button detail-close-button" data-action="toggle-detail" aria-label="收起文献详情" title="收起文献详情"><span data-icon="close"></span></button></div></div>
     ${documentArt()}
     <div class="paper-journal"><i class="journal-mark"></i><button data-journal="${escape(p.journal)}" title="按期刊筛选">${escape(p.journal || '未填写期刊')}</button><span>·</span>${escape(p.year || '年份待补充')}</div>
-    <div class="impact-badge ${metric ? '' : 'missing'}" title="${escape(metric?.source || '可在编辑信息或期刊指标导入中填写')}">${metric ? `IF ${metric.value} <span>· ${escape(metric.year || '年份未填')}</span>` : 'IF 未填写'}</div>
+    ${metric?`<div class="impact-badge" title="${escape(metric.source||'')}">IF ${metric.value} <span>· ${escape(metric.year||'')}</span></div>`:''}
     <h2 class="paper-title"><button data-action="paper-notes" title="打开这篇文献的全部笔记">${escape(p.title)}</button></h2>
     <p class="paper-authors">${escape(authors.length ? authors.map(a => a.name).join(', ') : p.authors || '作者待补充')}</p>
     <details class="author-details"><summary>全部作者与机构 <span>${authors.length ? authors.length + ' 位作者' : '待补全'}</span></summary>${authors.length ? `<ol>${authors.map(a => `<li><button data-author="${escape(a.name)}">${escape(a.name)}</button>${a.affiliations.length ? a.affiliations.map(institution => `<button class="affiliation" data-institution="${escape(institution)}">${escape(institution)}</button>`).join('') : '<small>机构待补充</small>'}</li>`).join('')}</ol>` : '<p>编辑信息或导入元数据，可逐位记录作者与所属机构。</p>'}</details>
     ${p.doi ? `<p class="doi-label">DOI ${escape(p.doi)}</p>` : ''}
     
     <div class="detail-divider"></div>
-    <div class="detail-label"><span>研究标签 · 点击查看笔记</span><button class="text-button" data-action="edit">编辑</button></div>
-    <div class="tags">${p.tags.length ? p.tags.map(tag => `<button class="tag" data-link-tag="${escape(tag)}">${escape(tag)}</button>`).join('') : '<span class="help-inline">添加标签，让文献彼此连接。</span>'}</div>
-    <p class="detail-label">主题收藏夹</p><div class="collection-value"><span data-icon="folder"></span>${escape(folder?.name || '未归入收藏夹')}</div><div class="detail-collection-actions"><button class="outline-button" data-action="paper-collection">${p.collection?'更改收藏夹':'＋ 加入收藏夹'}</button></div>
-    <div class="detail-label"><span>材料 · ${paperMaterials(p).length} 个</span><button class="text-button" data-action="performance-editor">管理材料 / 参数 ↗</button></div>
-    <div class="material-preview-list">${paperMaterials(p).map(material=>`<section class="material-preview"><h3>${escape(material.name)}</h3>${material.composition?`<p class="material-composition">${escape(material.composition)}</p>`:''}${material.description?`<p class="material-description-text">${escape(material.description)}</p>`:''}<small>${material.measurements.length} 条性能参数</small><div class="performance-preview">${material.measurements.slice(0,4).map(m=>`<div><button class="performance-parameter-link" data-parameter-name="${escape(parameterNameKey(m.name))}" data-parameter-unit="*" title="查找全库录入此参数的文献">${escape(m.name)} ↗</button><strong>${escape(m.qualifier)}${escape(m.value)} <small>${escape(m.unit)}</small></strong><small>${escape([m.sample,m.conditions].filter(Boolean).join(' · '))}</small></div>`).join('')||'<p class="help-inline">尚未录入性能参数。</p>'}</div>${material.measurements.length>4?'<p class="help-inline">管理材料可查看全部参数。</p>':''}</section>`).join('')||'<p class="help-inline">添加材料，再录入各材料的性能参数；也可导入新版 Markdown 模板。</p>'}</div>
-    <div class="detail-label"><span>文献笔记 · ${notes.count('paper', p.id)} 条</span><button class="text-button" data-action="paper-notes">管理 / 添加 ↗</button></div>
-    ${notes.preview('paper', p.id) || '<p class="help-inline">每篇文献可以保留多条独立笔记。</p>'}
+    <div class="detail-label"><span>研究标签</span></div>
+    <div class="tags">${p.tags.length ? p.tags.map(tag => `<button class="tag" data-link-tag="${escape(tag)}">${escape(tag)}</button>`).join('') : '<span class="help-inline">暂无标签</span>'}</div>
+    <p class="detail-label">文献分组</p><button class="collection-value collection-value-button" data-action="paper-collection" title="更改分组"><span data-icon="folder"></span>${escape(folder?.name || '未分组')}<span aria-hidden="true">⌄</span></button>
+    <div class="detail-label"><span>材料 · ${paperMaterials(p).length} 个</span><button class="text-button" data-action="performance-editor">编辑</button></div>
+    <div class="material-preview-list">${paperMaterials(p).map(material=>`<section class="material-preview"><h3>${escape(material.name)}</h3>${material.composition?`<p class="material-composition">${escape(material.composition)}</p>`:''}${material.description?`<p class="material-description-text">${escape(material.description)}</p>`:''}<small>${material.measurements.length} 条性能参数</small><div class="performance-preview">${material.measurements.slice(0,4).map(m=>`<div><button class="performance-parameter-link" data-parameter-name="${escape(parameterNameKey(m.name))}" data-parameter-unit="*" title="查找全库录入此参数的文献">${escape(m.name)} ↗</button><strong>${escape(m.qualifier)}${escape(m.value)} <small>${escape(m.unit)}</small></strong><small>${escape([m.sample,m.conditions].filter(Boolean).join(' · '))}</small></div>`).join('')||'<p class="help-inline">尚未录入性能参数。</p>'}</div>${material.measurements.length>4?'<p class="help-inline">管理材料可查看全部参数。</p>':''}</section>`).join('')||''}</div>
+    <div class="detail-label"><span>文献笔记 · ${notes.count('paper', p.id)} 条</span><button class="text-button" data-action="paper-notes">添加</button></div>
+    ${notes.preview('paper', p.id) || ''}
     <div class="detail-divider"></div>${relatedPaperSections(related,escape)}
-    <div class="detail-bottom"><button class="primary open-pdf" data-action="open-pdf"><span data-icon="external"></span>阅读 PDF 与批注</button><p class="detail-file-note">${bytesLabel(p.file?.size || p.size || 0)} · ${escape(p.filename || 'PDF 文献')}</p></div>`;
+    <div class="detail-bottom"><button class="primary open-pdf" data-action="open-pdf"><span data-icon="external"></span>阅读 PDF</button><p class="detail-file-note">${bytesLabel(p.file?.size || p.size || 0)} · ${escape(p.filename || 'PDF 文献')}</p></div>`;
 }
 
 function selectPaper(id, showMobile = false) {
@@ -229,13 +239,13 @@ function toast(message, error = false) {
 function showModal(title, description, body, context = '') {
   comparison?.dispose();
   modalContext = context;
-  $('#modal-content').innerHTML = `<div class="modal-heading"><div><h2>${title}</h2><p>${description}</p></div><button class="icon-button" data-action="close-modal" aria-label="关闭弹窗"><span data-icon="close"></span></button></div><div class="modal-body">${body}</div>`;
+  $('#modal-content').innerHTML = `<div class="modal-heading"><div><h2>${title}</h2>${description?`<p>${description}</p>`:''}</div><button class="icon-button" data-action="close-modal" aria-label="关闭弹窗"><span data-icon="close"></span></button></div><div class="modal-body">${body}</div>`;
   hydrateIcons($('#modal')); if (!$('#modal').open) $('#modal').showModal();
   $('#graph-tooltip').hidden = true;
 }
-function closeModal() { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || themeController?.isBusy() || removalBusy) { toast('正在保存更改，请稍候。'); return; } comparison?.dispose(); $('#modal').close(); modalContext = ''; state.pendingFiles = []; pendingRemovalIds = []; }
+function closeModal() { if (batch?.isBusy() || bulkEditor?.isBusy() || paperActions?.isBusy() || performanceEditor?.isBusy() || themeController?.isBusy() || groupActions?.isBusy() || removalBusy) { toast('正在保存更改，请稍候。'); return; } comparison?.dispose(); $('#modal').close(); modalContext = ''; state.pendingFiles = []; pendingRemovalIds = []; }
 function ensureStorage() { if (!state.storageError && state.ready) return true; if(!state.storageError){toast('正在打开文献库，请稍候…');return false;} toast(native ? '本地文献库不可用，请检查文件夹权限。' : '浏览器存储不可用，请使用普通浏览窗口重试。', true); return false; }
-function folderOptions(selected = '') { return '<option value="">未归入收藏夹</option>' + state.collections.map(c => `<option value="${escape(c.id)}" ${selected === c.id ? 'selected' : ''}>${escape(c.name)}</option>`).join(''); }
+function folderOptions(selected = '') { return '<option value="">未归入分组</option>' + state.collections.map(c => `<option value="${escape(c.id)}" ${selected === c.id ? 'selected' : ''}>${escape(c.name)}</option>`).join(''); }
 function formValues(form) {
   const data = new FormData(form), authorDetails = normalizeAuthors(data.get('authorDetails'));
   const impactFactor = numericImpact(data.get('impactFactor')), impactYear = String(data.get('impactYear') || '').trim();
@@ -252,7 +262,7 @@ async function addFiles(files) { if (ensureStorage()) await batch.addFiles(files
 function editModal() {
   const p = selectedPaper(); if (!p) return;
   if (!ensureStorage()) return;
-  showModal('编辑文献信息', '完整记录作者、机构与期刊指标。', `<form id="edit-form" data-id="${escape(p.id)}"><label class="form-field">文献标题<input name="title" required maxlength="1000" value="${escape(p.title)}"></label>${bibliographyFields(p)}<label class="form-field">研究标签<input name="tags" maxlength="2500" value="${escape(p.tags.join('，'))}" placeholder="用逗号分隔标签"><small>标签关联至少 3 篇文献后参与常规筛选与颜色分组。星图只连接手动加入的关联节点，原始标签及笔记始终保留。</small></label><label class="form-field">收藏夹<select name="collection">${folderOptions(p.collection)}</select></label><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button type="submit" class="primary">保存修改</button></div></form>`, 'edit');
+  showModal('编辑文献信息', '完整记录作者、机构与期刊指标。', `<form id="edit-form" data-id="${escape(p.id)}"><label class="form-field">文献标题<input name="title" required maxlength="1000" value="${escape(p.title)}"></label>${bibliographyFields(p)}<label class="form-field">研究标签<input name="tags" maxlength="2500" value="${escape(p.tags.join('，'))}" placeholder="用逗号分隔标签"><small>标签关联至少 3 篇文献后参与常规筛选与颜色分组。星图只连接手动加入的关联节点，原始标签及笔记始终保留。</small></label><label class="form-field">分组<select name="collection">${folderOptions(p.collection)}</select></label><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button type="submit" class="primary">保存修改</button></div></form>`, 'edit');
 }
 
 async function submitEdit(form) {
@@ -272,12 +282,12 @@ async function favorite(id = state.selected) {
 function newCollectionModal() {
   if (!ensureStorage()) return;
   if(state.compareIds.size)return paperActions.create([...state.compareIds]);
-  showModal('建立一个研究主题', '用收藏夹，为你的阅读建立清晰的秩序。', `<form id="collection-form"><label class="form-field">收藏夹名称<input name="name" required maxlength="80" placeholder="例如：我的二维材料研究" autofocus></label><label class="form-field">主题颜色</label><div class="collection-colors">${PALETTE.map((color, i) => `<button type="button" class="color-choice ${i === 0 ? 'active' : ''}" style="background:${color}" data-color="${color}" aria-label="颜色 ${i + 1}" aria-pressed="${i === 0}"></button>`).join('')}</div><input type="hidden" name="color" value="${PALETTE[0]}"><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">创建收藏夹</button></div></form>`, 'collection');
+  showModal('建立一个研究主题', '用分组，为你的阅读建立清晰的秩序。', `<form id="collection-form"><label class="form-field">分组名称<input name="name" required maxlength="80" placeholder="例如：我的二维材料研究" autofocus></label><label class="form-field">主题颜色</label><div class="collection-colors">${PALETTE.map((color, i) => `<button type="button" class="color-choice ${i === 0 ? 'active' : ''}" style="background:${color}" data-color="${color}" aria-label="颜色 ${i + 1}" aria-pressed="${i === 0}"></button>`).join('')}</div><input type="hidden" name="color" value="${PALETTE[0]}"><div class="modal-footer"><button type="button" class="text-button" data-action="close-modal">取消</button><button class="primary" type="submit">创建分组</button></div></form>`, 'collection');
 }
 
 async function submitCollection(form) {
   const data = new FormData(form), name = String(data.get('name') || '').trim(); if (!name) return;
-  if (state.collections.some(c => c.name === name)) { toast('已经有同名收藏夹了。', true); return; }
+  if (state.collections.some(c => c.name === name)) { toast('已经有同名分组了。', true); return; }
   const collection = { id: uid('folder'), name, color: String(data.get('color')) };
   const next = [...state.collections, collection]; await setSetting('collections', next);
   state.collections = next; state.mode = 'own'; state.collection = collection.id; state.nav = 'all'; state.query = ''; state.tag = ''; state.year = ''; $('#search').value = ''; await setSetting('mode', 'own');
@@ -328,16 +338,14 @@ async function undoRemoval() {
   } finally { removalBusy = false; button.disabled = false; }
 }
 
-function settingsModal() {
-  const size = state.papers.reduce((sum, p) => sum + (p.file?.size || p.size || 0), 0);
-  showModal('文献库与备份', '文献、笔记与研究坐标，都由你掌握。', `
-    <div class="settings-card"><div><strong>主题与外观</strong><p>内置阅读配色，或导入自己的 CSS 变量主题。</p></div><button class="outline-button" data-action="themes">切换 / 导入主题</button></div>
-    ${native ? `<div class="settings-card folder-card"><div><strong>当前本地文献库</strong><p class="folder-path">${escape(state.desktopInfo?.path || '')}</p><p>原始 PDF、作者机构、标签、笔记和期刊指标均保存在这个文件夹。</p></div></div><div class="folder-actions"><button class="outline-button" data-action="choose-folder">选择 / 新建文献库</button><button class="outline-button" data-action="open-folder">打开文件夹</button></div>` : '<div class="info-box">当前是网页预览。桌面 EXE 使用本地文件夹保存数据；网页预览仍使用浏览器存储。</div>'}
-    <div class="settings-card"><div><strong>导入文献元数据</strong><p>批量导入 Markdown：标题、作者机构、标签、性能参数和笔记。</p></div><button class="outline-button" data-action="import-metadata">导入</button></div>
-    <div class="settings-card"><div><strong>期刊影响因子</strong><p>已收录 ${state.journalMetrics.length} 条年度指标，含出版方公开的 2025 年 JIF。</p></div><button class="outline-button" data-action="journal-catalog">查看数据 / 来源</button></div>
-    <div class="settings-card"><div><strong>完整备份</strong><p>${state.papers.length} 篇 PDF、全部笔记、作者机构、收藏夹和期刊指标。</p></div><button class="outline-button" data-action="export">导出</button></div>
-    <div class="settings-card"><div><strong>恢复完整备份</strong><p>合并文献、笔记与指标；相同 ID 的记录以备份为准。</p></div><button class="outline-button" data-action="restore">选择文件</button></div>
-    <div class="info-box">${native ? '切换文献库会打开所选文件夹中的数据，原文件夹保留。可将整个文献库文件夹复制到其他设备。' : '网页数据不会自动迁入桌面程序，请先导出备份，再在 EXE 中恢复。'} 当前 PDF 总量 ${bytesLabel(size)}。</div><div class="modal-footer"><button class="primary" data-action="close-modal">完成</button></div>`, 'settings');
+async function settingsModal() {
+  const size=state.papers.reduce((sum,p)=>sum+(p.file?.size||p.size||0),0);settingsActivity=await getImportActivity();
+  showModal('设置','',`
+    <div class="settings-card"><div><strong>主题与字体</strong><p>配色、明暗外观与字号</p></div><button class="outline-button" data-action="themes">外观…</button></div>
+    ${native?`<div class="settings-card folder-card"><div><strong>文献库</strong><p class="folder-path">${escape(state.desktopInfo?.path||'')}</p><small>${state.papers.length} 篇 · ${bytesLabel(size)}</small></div><div class="settings-inline-actions"><button class="outline-button" data-action="open-folder">打开</button>${actionMenu('storage-options','文献库选项','<button data-action="choose-folder">切换文献库…</button><button data-action="sync-folders">立即同步文件夹</button>',{iconOnly:true,className:'icon-button'})}</div></div>`:'<div class="info-box">网页预览 · 数据保存在当前浏览器</div>'}
+    <div class="settings-card"><div><strong>文献信息</strong><p>补充信息与期刊指标</p></div>${actionMenu('metadata-options','管理','<button data-action="import-metadata">导入文献信息…</button><button data-action="journal-catalog">期刊影响因子…</button>',{iconName:'folder'})}</div>
+    <div class="settings-card"><div><strong>备份与恢复</strong><p>PDF、笔记、分组与导入记录</p></div>${actionMenu('backup-options','备份','<button data-action="export">导出完整备份…</button><button data-action="restore">从备份恢复…</button>',{iconName:'download'})}</div>
+    <section id="settings-import-activity" class="settings-activity" aria-label="每日导入记录">${activityHTML(settingsActivity)}</section><div class="modal-footer"><button class="primary" data-action="close-modal">完成</button></div>`,'settings');
 }
 
 function journalCatalogModal() {
@@ -355,7 +363,7 @@ async function exportLibrary() {
   if (!state.papers.length && !state.collections.length && !state.journalMetrics.length && !Object.keys(state.notes).length) { toast('你的文献库还是空的，导入 PDF 后即可导出完整备份。'); return; }
   toast('正在打包 PDF 和文献信息，请稍候…');
   await comparison.flushSelection();
-  const backup = await createBackup(state.papers, state.collections, state.notes, state.journalMetrics, await readStudy(), comparison.getMaterialSelection().groups || []);
+  const backup = await createBackup(state.papers, state.collections, state.notes, state.journalMetrics, await readStudy(), comparison.getMaterialSelection().groups || [],await getImportActivity());
   if (native) { const saved = await native.saveBackup(JSON.stringify(backup)); if (!saved.canceled) toast(`完整备份已保存到：${saved.path}`); return; }
   const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -370,7 +378,7 @@ async function restoreFile(file) {
   let backup;
   try { backup = readBackup(JSON.parse(await file.text())); }
   catch (error) { toast(error instanceof SyntaxError ? '文件不是有效的 JSON 备份。' : error.message, true); return; }
-  showModal('恢复这份文献备份？', '备份将合并进我的文献库。', `<p class="confirm-copy">包含 ${backup.papers.length} 篇文献、${backup.collections.length} 个收藏夹。<br>同一 ID 的记录将被备份内容覆盖，其余文献保留。</p><div class="modal-footer"><button class="text-button" data-action="close-modal">取消</button><button class="primary" id="confirm-restore">确认恢复</button></div>`, 'restore-confirm');
+  showModal('恢复这份文献备份？', '备份将合并进我的文献库。', `<p class="confirm-copy">包含 ${backup.papers.length} 篇文献、${backup.collections.length} 个分组。<br>同一 ID 的记录将被备份内容覆盖，其余文献保留。</p><div class="modal-footer"><button class="text-button" data-action="close-modal">取消</button><button class="primary" id="confirm-restore">确认恢复</button></div>`, 'restore-confirm');
   $('#confirm-restore').addEventListener('click', async event => {
     const confirmButton = event.currentTarget;
     confirmButton.disabled = true;
@@ -421,7 +429,7 @@ const actions = {
   themes: () => themeController.open(), settings: settingsModal, 'storage-info': settingsModal, export: exportLibrary, restore: () => $('#backup-input').click(),
   help: helpModal, shortcuts: shortcutsModal,
   'zoom-in': () => map.zoom(1.2), 'zoom-out': () => map.zoom(1 / 1.2), fit: () => map.fit(),
-  'clear-tag': () => { state.tag = ''; render(); }, 'restore-hidden': () => { state.hiddenIds.clear(); state.hiddenTagNodes.clear(); render(); }, 'hide-node': () => { if (state.selected) { state.hiddenIds.add(state.selected); render(); } }, 'graph-motion': () => { $('#graph-motion').textContent = map.toggleMotion() ? '暂停布局' : '继续布局'; }, 'graph-relayout': () => { map.relayout(); map.fit(); }, 'graph-release-pins': () => { map.releasePins(); },
+  'clear-tag': () => { state.tag = ''; render(); }, 'restore-hidden': () => { state.hiddenIds.clear(); state.hiddenTagNodes.clear(); render(); }, 'hide-node': () => { if (state.selected) { state.hiddenIds.add(state.selected); render(); } }, 'graph-motion': () => { $('#graph-motion').textContent = map.toggleMotion() ? '暂停布局' : '继续布局'; }, 'graph-relayout': () => map.arrangeNaturalLayout(), 'graph-arrange':()=>map.arrangeNaturalLayout(), 'graph-arrange-all':()=>map.arrangeNaturalLayout({releasePins:true}), 'graph-arrange-undo':()=>map.undoNaturalLayout(), 'graph-release-pins': () => { map.releasePins(); },
   'reset-filters': () => resetFilters(),
   'toggle-sidebar': () => {state.leftPanelOpen=!state.leftPanelOpen;render();},'toggle-detail': () => {state.detailOpen=!state.detailOpen;render();},'toggle-local': () => {state.graphPreferences.localMode=!state.graphPreferences.localMode;render();saveGraphPreferences();},'associations':()=>associationController.open(),'reset-graph-settings':()=>{state.graphPreferences={...GRAPH_DEFAULTS};render();saveGraphPreferences();},
   'graph-focus': () => { state.focusGraph = !state.focusGraph; render(); window.scrollTo({top:0}); },
@@ -433,6 +441,7 @@ const actions = {
   'tag-index': () => notes.openIndex(),
   'paper-notes': () => { if (state.selected) notes.open('paper', state.selected); },
   'open-folder': () => native?.openFolder(),
+  'sync-folders':async()=>{await native?.syncFolders();await reloadLibrary();render();await settingsModal();},
   'choose-folder': async () => {
     await comparison.flushSelection();await researchCanvas.flush();
     switchingLibrary = true; clearTimeout(layoutTimer);
@@ -523,13 +532,13 @@ function renderFilterOptions() {
     $(id).innerHTML = `<option value="">${initial}</option>` + [...new Set(items.filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b))).map(value => `<option value="${escape(value)}">${escape(value)}</option>`).join('');
     $(id).value = current || '';
   };
-  select('#tag-filter-add', [...eligibleTags(all)].filter(t => !state.filters.tags.includes(t)), '全部有效标签（至少 3 篇）', '');
+  select('#tag-filter-add', [...eligibleTags(all)].filter(t => !state.filters.tags.includes(t)), '全部标签', '');
   select('#graph-tag-hide', [...eligibleTags(all)].filter(tag => !state.hiddenTagNodes.has(tag)), '选择要隐藏的标签节点…', '');
   select('#excluded-tag-add', [...eligibleTags(all)].filter(tag => !state.filters.excludeTags.includes(tag)), '隐藏包含此标签的文献…', '');
   $('#excluded-filter-tags').innerHTML = state.filters.excludeTags.map(tag => `<button class="tag excluded-tag" data-remove-excluded-tag="${escape(tag)}">排除 ${escape(tag)} ×</button>`).join('');
   select('#journal-filter', all.map(p => p.journal), '全部期刊', state.filters.journal);
   select('#impact-year-filter', [...state.journalMetrics.map(m => m.year), ...all.map(p => p.impactYear)], '各刊最新 / 文献指定', state.filters.impactYear);
-  $('#folder-filter').innerHTML = '<option value="">全部收藏夹</option>' + collections().map(c => `<option value="${escape(c.id)}">${escape(c.name)}</option>`).join('');
+  $('#folder-filter').innerHTML = '<option value="">全部分组</option>' + collections().map(c => `<option value="${escape(c.id)}">${escape(c.name)}</option>`).join('');
   $('#folder-filter').value = state.collection;
   $('#selected-filter-tags').innerHTML = state.filters.tags.map(t => `<button class="tag" data-remove-filter-tag="${escape(t)}">${escape(t)} ×</button>`).join('');
   document.querySelectorAll('[data-filter]').forEach(input => { if (input.type === 'checkbox') input.checked = Boolean(state.filters[input.dataset.filter]); else if (input.value !== String(state.filters[input.dataset.filter] ?? '')) input.value = state.filters[input.dataset.filter] ?? ''; });
@@ -613,7 +622,8 @@ comparison=createComparison({escape,showModal,toast,isMaterialList:()=>state.vie
 materialList=createMaterialList({escape,showModal,closeModal,toast,comparison,getPapers:papers,isVisible:()=>state.view==='materials',onCount:(count,total)=>{$('#visible-count').textContent=`${count} / ${total} 个材料`;}});
 batch=createBatchImporter({escape,showModal,toast,bytesLabel,normalizeTags,folderOptions,getPapers:papers,isOpen:()=>modalContext==='import',putPapers,saveText,persistNotes:async incoming=>{const next=mergeImportNotes(await getSetting('notes') || {},incoming);await setSetting('notes',next);},reload:reloadLibrary,onDone:id=>{closeModal();state.nav='all';state.mode='own';state.selected=id || '';resetFilters(false);map.fit();render();}});
 bulkEditor=createBulkEditor({escape,showModal,toast,normalizeTags,getPapers:papers,getCollections:collections,getSelection:()=>state.compareIds,save:bulkEdit,reload:reloadLibrary,done:()=>{closeModal();render();}});
-paperActions=createPaperActions({escape,showModal,closeModal,toast,canEdit:ensureStorage,getPapers:papers,getCollections:collections,getVisible:visiblePapers,getSelection:()=>state.compareIds,selectPaper,hasPDF:p=>Boolean(p.file||p.pdfPath),isReaderOpen:()=>reader.isOpen(),read:id=>reader.open(id),edit:ids=>{if(ids.length===1){selectPaper(ids[0]);editModal();}else bulkEditor.open(null,ids);},notes:id=>notes.open('paper',id),remove:deleteModal,selectComparison:ids=>comparison.selectIds(ids),assign:bulkEdit,reload:async()=>{await reloadLibrary();render();},star:async(ids,favorite)=>{await putPapers(papers().filter(p=>ids.includes(p.id)).map(p=>({...p,favorite})));},createEmpty:async name=>{if(collections().some(c=>c.name===name))throw new Error('已有同名收藏夹，请直接选择该收藏夹。');await setSetting('collections',[...collections(),{id:uid('folder'),name,color:PALETTE[0]}]);}});
+paperActions=createPaperActions({escape,showModal,closeModal,toast,locate:native?.openPaperFolder? id=>native.openPaperFolder(id):null,parameters:id=>{selectPaper(id);performanceEditor.open(id);},hide:id=>{state.hiddenIds.add(id);render();},canEdit:ensureStorage,getPapers:papers,getCollections:collections,getVisible:visiblePapers,getSelection:()=>state.compareIds,selectPaper,hasPDF:p=>Boolean(p.file||p.pdfPath),isReaderOpen:()=>reader.isOpen(),read:id=>reader.open(id),edit:ids=>{if(ids.length===1){selectPaper(ids[0]);editModal();}else bulkEditor.open(null,ids);},notes:id=>notes.open('paper',id),remove:deleteModal,selectComparison:ids=>comparison.selectIds(ids),assign:bulkEdit,reload:async()=>{await reloadLibrary();render();},star:async(ids,favorite)=>{await putPapers(papers().filter(p=>ids.includes(p.id)).map(p=>({...p,favorite})));},createEmpty:async name=>{if(collections().some(c=>c.name===name))throw new Error('已有同名分组，请直接选择该分组。');await setSetting('collections',[...collections(),{id:uid('folder'),name,color:PALETTE[0]}]);}});
+groupActions=createGroupActions({escape,showModal,closeModal,toast,getGroups:collections,openFolder:native?.openGroupFolder?id=>native.openGroupFolder(id):null,save:groups=>setSetting('collections',groups),reload:async()=>{await reloadLibrary();render();}});
 performanceEditor=createPerformanceEditor({escape,showModal,toast,getPapers:papers,close:closeModal,save:async(id,materials)=>{const p=state.papers.find(p=>p.id===id);if(!p)throw new Error('找不到文献');await putPaper(normalizePaperMaterials({...p,materials}));await reloadLibrary();render();}});
 
 async function init() {
@@ -657,3 +667,8 @@ researchCanvas=createResearchCanvas({flushBeforeExit:()=>comparison.flushSelecti
 agentController = createAgentController({ getPapers: papers, getNotes: () => state.notes, getSelectedIds: () => state.compareIds.size ? [...state.compareIds] : (state.selected ? [state.selected] : []), getSetting, setSetting, isReady: () => state.ready && !state.storageError, openPaper: id => { if (!state.papers.some(p => p.id === id)) { toast('这篇文献已不在当前文献库。'); return; } state.nav='all'; resetFilters(false); state.detailOpen=true; state.selected=id; render(); selectPaper(id,true); } });
 init();
 
+
+// Folder changes update the catalog without replacing open editors or reader drafts.
+native?.onLibraryChanged?.(async info=>{if(switchingLibrary||info.path!==state.desktopInfo?.path)return;try{await reloadLibrary();render();}catch(error){toast(error.message,true);}});
+document.addEventListener('change',event=>{if(!event.target.matches('[data-activity-year]'))return;document.querySelector('#settings-import-activity').innerHTML=activityHTML(settingsActivity,Number(event.target.value));});
+document.addEventListener('click',event=>{const day=event.target.closest('[data-activity-date]');if(!day)return;const label=document.querySelector('[data-activity-detail]');if(label)label.textContent=day.title;});

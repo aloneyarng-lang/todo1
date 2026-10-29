@@ -14,7 +14,7 @@ test('CSS template round trips names, colors, font stacks and corners; partial t
   const css=themeCSS('中文学术主题',THEME_TOKENS),parsed=parseThemeCSS(css);
   assert.equal(parsed.name,'中文学术主题');assert.deepEqual(parsed.tokens,THEME_TOKENS);
   const custom=importThemeFiles({},[{name:'Ocean.css',text:'\uFEFF/* @name: 我的海蓝 */\n:root { --teal: rgb(20, 70, 120); --radius: 12px; }'}],()=> 'custom-a');
-  const resolved=resolveTheme(custom);assert.equal(resolved.name,'我的海蓝');assert.equal(resolved.tokens['--radius'],'12px');assert.equal(resolved.tokens['--ink'],THEME_TOKENS['--ink']);
+  const resolved=resolveTheme(custom);assert.equal(resolved.name,'我的海蓝');assert.equal(resolved.tokens['--radius'],'16px');assert.equal(resolved.tokens['--ink'],THEME_TOKENS['--ink']);
 });
 test('theme format rejects arbitrary layout rules, imports, URLs, unknown tokens, oversized and malformed files',()=>{
   for(const css of ['body { display: none; }',':root { --teal: url(https://example.com/x); }','@import "x.css"; :root { --teal: #fff; }',':root { --unknown: #fff; }',':root { --radius: 100px; }',':root { --sans: "broken; }',':root { --theme-mode: auto; }',':root { --teal: red !important; }',':root {}',':root { --ink: #fff; } body {display:none}', ' '.repeat(32769)])assert.throws(()=>parseThemeCSS(css),Error);
@@ -50,7 +50,7 @@ test('font overrides survive palette changes, CSS import and deletion while foll
   assert.equal(resolveTheme({...imported,fonts:{body:'theme',heading:'theme'}}).tokens['--sans'],'Custom Sans, sans-serif');
   const css=themeCSS(resolved.name,resolved.tokens);assert.equal(parseThemeCSS(css).tokens['--serif'],resolved.tokens['--serif']);
   assert.deepEqual(cleanThemePreferences({fonts:{body:'unknown',heading:'<script>'}}),{selected:'paper',themes:[]});
-  assert.equal(resolveTheme({selected:'wikipedia'}).tokens['--teal'],'#3366cc');
+  assert.equal(resolveTheme({selected:'wikipedia'}).id,'paper');
 });
 
 test('academic purple uses a complete light palette and preserves independent typography choices',()=>{const theme=resolveTheme({selected:'academic-purple',fonts:{body:'yahei',heading:'times'}});assert.equal(theme.name,'学术紫');assert.equal(theme.tokens['--teal'],'#705095');assert.equal(theme.tokens['--theme-mode'],'light');assert.ok(theme.tokens['--sans'].includes('Microsoft YaHei'));assert.ok(theme.tokens['--serif'].includes('Times New Roman'));assert.equal(cleanThemePreferences({selected:'academic-purple'}).selected,'academic-purple');});

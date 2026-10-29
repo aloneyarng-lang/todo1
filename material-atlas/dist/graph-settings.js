@@ -1,3 +1,4 @@
+import {THEME_ALIASES} from './theme-variants.js';
 export const GRAPH_DEFAULTS = {center:.35,repulsion:2.2,linkStrength:.65,linkDistance:145,inertia:.5,nodeSize:1,linkWidth:.8,labelThreshold:1.3,showRelations:true,colorBy:'tag',localMode:false,localDepth:1,appearance:'theme'};
 export function cleanGraphSettings(value = {}) {
   const output={...GRAPH_DEFAULTS},limits={center:[0,2],repulsion:[.25,4],linkStrength:[.1,2],linkDistance:[40,250],inertia:[0,1],nodeSize:[.6,2],linkWidth:[.3,2.5],labelThreshold:[.5,2.5],localDepth:[0,2]};
@@ -6,6 +7,7 @@ export function cleanGraphSettings(value = {}) {
   for(const key of ['showRelations','localMode'])if(typeof value[key]==='boolean')output[key]=value[key];
   if(['tag','journal','collection'].includes(value.colorBy))output.colorBy=value.colorBy;
   if(['theme','classic','orbital','crystal','cosmos'].includes(value.appearance)||/^theme:[a-z][a-z\d-]{0,100}$/i.test(value.appearance||''))output.appearance=value.appearance;
+  if(output.appearance.startsWith('theme:')&&THEME_ALIASES[output.appearance.slice(6)])output.appearance='theme:'+THEME_ALIASES[output.appearance.slice(6)].id;
   return output;
 }
 
