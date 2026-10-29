@@ -70,6 +70,7 @@ async function start() {
   handle('library:delete-paper', id => library.deletePaper(id));
   handle('library:delete-papers', ids => library.deletePapers(ids));
   handle('library:bulk-edit', (ids, options) => library.bulkEdit(ids, options));
+  handle('library:set-reading-status',(ids,status)=>library.setReadingStatus(ids,status));
   handle('library:restore-papers', id => library.restorePapers(id));
   handle('library:get-setting', key => library.getSetting(key));
   handle('library:set-setting', (key, value) => library.setSetting(key, value));

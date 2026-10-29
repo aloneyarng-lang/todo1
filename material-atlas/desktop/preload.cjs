@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('materiaDesktop', {
   deletePaper: id => ipcRenderer.invoke('library:delete-paper', id),
   deletePapers: ids => ipcRenderer.invoke('library:delete-papers', ids),
   bulkEdit: (ids, options) => ipcRenderer.invoke('library:bulk-edit', ids, options),
+  setReadingStatus: (ids,status) => ipcRenderer.invoke('library:set-reading-status',ids,status),
   restorePapers: id => ipcRenderer.invoke('library:restore-papers', id),
   getSetting: key => ipcRenderer.invoke('library:get-setting', key),
   setSetting: (key, value) => ipcRenderer.invoke('library:set-setting', key, value),

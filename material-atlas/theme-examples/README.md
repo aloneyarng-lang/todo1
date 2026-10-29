@@ -14,3 +14,5 @@
 - `SOURCE-CODE-PRO-LICENSE.md`：字体分发许可。
 
 完整格式与字段范围见程序旁的 `THEMES.md` 与 `GRAPH_THEME_API.md`。此示例的字体包含西文与数字；中文由微软雅黑等后备字体显示。
+
+- [命运石之门 · 世界线](steins-gate/README.md)：内置双模式玻璃主题，仪表管与分支交汇 SVG，附可独立导入的完整包。

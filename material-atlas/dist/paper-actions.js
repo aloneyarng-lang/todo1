@@ -1,3 +1,4 @@
+import {READING_STATUSES,readingStatusOf} from './reading-status.js';
 // A menu captures its targets when opened; later selection changes cannot retarget it.
 export function paperActionTargets(papers, selection, clickedId) {
   const existing=new Set(papers.map(p=>p.id));
@@ -23,7 +24,7 @@ export function createPaperActions(config) {
     close();origin=row;config.selectPaper(id);
     const rows=records(targets),multi=rows.length>1,allStar=rows.every(p=>p.favorite),allPlot=targets.every(id=>config.getSelection().has(id));
     const hidden=rows.filter(p=>!config.getVisible().some(v=>v.id===p.id)).length;
-    menu.innerHTML=`<div class="paper-context-panel" role="menu" aria-label="文献快捷操作"><header><strong>${multi?`当前选中 ${rows.length} 篇文献`:esc(rows[0].title)}</strong><small>${multi?`${hidden?`含 ${hidden} 篇不在当前筛选结果中`:''}`:''}</small></header>${!multi?item('read','阅读 PDF 与批注',{disabled:!config.hasPDF(rows[0]),extra:!config.hasPDF(rows[0])?'title="尚未附上 PDF 文件"':''}):''}${item('collections','分组 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}${item('star',allStar?'取消星标':'加星标')}${item('edit',multi?'批量修改标签…':'编辑信息…')}${item('plot',allPlot?'从作图选择中移除':'加入作图选择')}<hr>${item('more','更多 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}<hr>${item('remove',`移除${multi?` ${rows.length} 篇`:''}文献…`,{danger:true})}</div><div class="paper-context-submenu paper-context-panel" role="menu" hidden></div>`;
+    menu.innerHTML=`<div class="paper-context-panel" role="menu" aria-label="文献快捷操作"><header><strong>${multi?`当前选中 ${rows.length} 篇文献`:esc(rows[0].title)}</strong><small>${multi?`${hidden?`含 ${hidden} 篇不在当前筛选结果中`:''}`:''}</small></header>${!multi?item('read','阅读 PDF 与批注',{disabled:!config.hasPDF(rows[0]),extra:!config.hasPDF(rows[0])?'title="尚未附上 PDF 文件"':''}):''}${item('collections','分组 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}${item('reading','阅读状态 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}${item('star',allStar?'取消星标':'加星标')}${item('edit',multi?'批量修改标签…':'编辑信息…')}${item('plot',allPlot?'从作图选择中移除':'加入作图选择')}<hr>${item('more','更多 <i>›</i>',{extra:'aria-haspopup="menu" aria-expanded="false"'})}<hr>${item('remove',`移除${multi?` ${rows.length} 篇`:''}文献…`,{danger:true})}</div><div class="paper-context-submenu paper-context-panel" role="menu" hidden></div>`;
     menu.hidden=false;clampPanel(menus()[0],x,y);focusFirst(menus()[0]);
   }
   function openSub(kind){
@@ -33,6 +34,8 @@ export function createPaperActions(config) {
     if(kind==='collections'){
       panel.setAttribute('aria-label','选择分组');
       panel.innerHTML=`<header><strong>归入分组 · ${rows.length} 篇</strong><small></small></header><div class="paper-folder-menu-list">${config.getCollections().map(c=>item('folder',`${rows.every(p=>p.collection===c.id)?'✓ ':''}${esc(c.name)}`,{extra:`data-folder-id="${esc(c.id)}"`})).join('')||'<p class="paper-menu-empty">还没有分组</p>'}</div><hr>${item('new-folder','＋ 新建分组并加入…')}${item('detach-folder','移出分组',{disabled:rows.every(p=>!p.collection)})}`;
+    }else if(kind==='reading'){
+      panel.setAttribute('aria-label','设置阅读状态');panel.innerHTML=`<header><strong>阅读状态${rows.length>1?' · '+rows.length+' 篇':''}</strong></header>${READING_STATUSES.map(s=>item('status',`<span class="reading-status-menu-label"><i class="reading-status-dot" aria-hidden="true"></i>${s.name}</span>${rows.every(p=>readingStatusOf(p)===s.id)?'✓':''}`,{extra:`data-reading-value="${s.id}" data-reading-status="${s.id}"`})).join('')}`;
     }else{
       panel.setAttribute('aria-label','更多文献操作');panel.innerHTML=`${rows.length===1?item('notes','文献笔记…')+item('parameters','材料与参数…'):''}${item('copy-title',rows.length>1?'复制所选标题':'复制标题')}${rows.length===1?item('copy-doi','复制 DOI',{disabled:!rows[0].doi}):''}${rows.length===1&&config.locate?'<hr>'+item('locate','在文件夹中显示'):''}${rows.length===1&&origin?.matches('.paper-node')?'<hr>'+item('hide','从当前星图隐藏'):''}`;
     }
@@ -65,7 +68,7 @@ export function createPaperActions(config) {
   menu.addEventListener('click',async event=>{
     event.stopPropagation();const button=event.target.closest('[data-paper-command]');if(!button||button.disabled)return;
     const command=button.dataset.paperCommand,ids=[...targets],rows=records(ids);
-    if(['collections','more'].includes(command)){openSub(command);return;}
+    if(['collections','reading','more'].includes(command)){openSub(command);return;}
     close();
     if(command==='folder')return assign(ids,{groupMode:'set',collection:button.dataset.folderId});
     if(command==='new-folder')return create(ids);
@@ -76,6 +79,7 @@ export function createPaperActions(config) {
     if(command==='parameters')return config.parameters?.(ids[0]);
     if(command==='locate')return run(()=>config.locate(ids[0]));
     if(command==='hide')return config.hide?.(ids[0]);
+    if(command==='status')return run(()=>config.setReadingStatus(ids,button.dataset.readingValue));
     if(command==='remove')return config.remove(ids);
     if(command==='star')return run(async()=>{await config.star(ids,!rows.every(p=>p.favorite));await config.reload();config.toast(`${ids.length} 篇文献${rows.every(p=>p.favorite)?'已取消星标':'已加入星标「我的收藏」'}。`);});
     if(command==='plot')return run(async()=>{const next=new Set(config.getSelection()),remove=ids.every(id=>next.has(id));ids.forEach(id=>remove?next.delete(id):next.add(id));await config.selectComparison([...next]);config.toast(`${ids.length} 篇文献${remove?'已移出':'已加入'}作图选择。`);});
@@ -100,7 +104,7 @@ export function createPaperActions(config) {
       if(event.key==='Tab'){close();return;}event.preventDefault();
       if(event.key==='Escape'){close(true);return;}
       if(event.key==='ArrowLeft'){hideSub();return;}
-      if(event.key==='ArrowRight'){const kind=document.activeElement?.dataset.paperCommand;if(['collections','more'].includes(kind))openSub(kind);return;}
+      if(event.key==='ArrowRight'){const kind=document.activeElement?.dataset.paperCommand;if(['collections','reading','more'].includes(kind))openSub(kind);return;}
       if(event.key==='Enter'||event.key===' '){document.activeElement?.click();return;}
       let i=buttons.indexOf(document.activeElement);i=event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowUp'?-1:1)+buttons.length)%buttons.length;buttons[i]?.focus();
     }

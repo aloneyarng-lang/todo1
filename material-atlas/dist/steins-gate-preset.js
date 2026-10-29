@@ -16,7 +16,7 @@ const junction=[circle(12,12,9.5,{fill:'none',stroke:'theme-accent','stroke-widt
 const meter=[rect(2.5,5,19,14,3),path('M5 8v8M9 8v8M13 8v8M17 8v8M4 19v2M20 19v2M4 3h16')];
 const gear=[path('M9 2.5h6l.7 2.3 2.1 1.2 2.4-.5 2 3.5-1.7 1.8v2.4l1.7 1.8-2 3.5-2.4-.5-2.1 1.2-.7 2.3H9l-.7-2.3-2.1-1.2-2.4.5-2-3.5 1.7-1.8v-2.4L1.8 9l2-3.5 2.4.5 2.1-1.2Z'),circle(12,12,4)];
 export const STEINS_GATE_PRESET={
-  id:'steins-gate',name:'命运石之门',description:'世界线观测 · 琥珀仪表 · 未来道具研究所',
+  id:'steins-gate',name:'命运石之门',description:'世界线观测 · 琥珀仪表',
   tokens:{...light,'--sans':APPLE_UI_STACK,'--serif':APPLE_UI_STACK,'--mono':APPLE_MONO_STACK,'--numeric':APPLE_MONO_STACK,'--radius':'16px','--font-size':'13px','--font-weight':'400','--line-height':'1.7','--heading-weight':'600','--heading-line-height':'1.5','--heading-scale':'1',
     ...graphTokens({nodeShape:'symbol',relationShape:'symbol',nodeFill:'hollow',background:'plain',colorMode:'accent',edgeStyle:'curve',edgeOpacity:.25,edgeWidth:.85,nodeScale:1.65,nodeStroke:1.15,labelScale:1,labelHalo:3,glow:1.4,twinkle:'off'})},
   variants:{light,dark},

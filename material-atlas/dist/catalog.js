@@ -1,6 +1,7 @@
 import { paperMaterials, paperMeasurements, normalizePaperMaterials } from './materials.js';
 import { eligibleTags } from './tags.js';
 import { hasParameter } from './parameter-index.js';
+import {readingStatusOf,readingStatusRank} from './reading-status.js';
 export const journalKey = value => String(value || '').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
 export function normalizeAuthors(input) {
   if (!input) return [];
@@ -25,6 +26,7 @@ export function filterCatalog(papers, state, notes = {}, metrics = []) {
   const eligible = eligibleTags(papers);
   const noteText = p => [p.notes || '', ...(notes[`paper:${p.id}`] || []).map(n => [n.anchor?.label,n.body,...(n.attachments||[]).map(image=>image.name)].join(' ')), ...p.tags.flatMap(tag => (notes[`tag:${tag}`] || []).map(n => n.body))].join(' ');
   let result = papers.filter(p => {
+    if(state.readingStatus&&readingStatusOf(p)!==state.readingStatus)return false;
     if (f.parameterName && !hasParameter(p, f.parameterName, f.parameterUnit ?? '*')) return false;
     if (state.hiddenIds?.has(p.id) || f.excludeTags?.some(tag => p.tags.includes(tag))) return false;
     const authors = normalizeAuthors(p.authorDetails || []);
@@ -41,6 +43,7 @@ export function filterCatalog(papers, state, notes = {}, metrics = []) {
     return true;
   });
   result.sort((a, b) => {
+    if(state.sort==='reading-status'){const difference=readingStatusRank(a)-readingStatusRank(b);if(difference)return difference;}
     if (state.sort === 'if-desc' || state.sort === 'if-asc') {
       const ai = impactOf(a, metrics, f.impactYear)?.value, bi = impactOf(b, metrics, f.impactYear)?.value;
       if (ai === undefined && bi !== undefined) return 1; if (bi === undefined && ai !== undefined) return -1;

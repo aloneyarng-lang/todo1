@@ -18,7 +18,7 @@ const el = (name, attrs = {}, text) => {
 export class StarMap {
   constructor(svg, callbacks) {
     Object.assign(this, callbacks);
-    this.naturalTask=null;this.naturalUndo=null;
+    this.naturalTask=null;this.naturalUndo=null;this.naturalOverview=false;
     this.svg = svg; this.scale = 1; this.x = 0; this.y = 0;this.viewHeight=620;this.labelPositions=new Map();
     this.cache = {}; this.nodes = []; this.selected = ''; this.paused = false; this.preferences={...GRAPH_DEFAULTS};this.collections=[];this.cosmos=new CosmicBackdrop(svg);
     this.symbolBackdrop=new SymbolBackdrop(svg);this.bindInput();
@@ -26,7 +26,7 @@ export class StarMap {
     this.resizeObserver=new ResizeObserver(()=>{const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;const height=Math.max(430,Math.min(1200,1000*r.height/r.width));if(Math.abs(height-this.viewHeight)>1)this.cancelNaturalLayout();this.y+=(height-this.viewHeight)/2;this.viewHeight=height;svg.setAttribute('viewBox',`0 0 1000 ${height}`);this.cosmos.resize(height);this.symbolBackdrop.resize(height);this.transform();});this.resizeObserver.observe(svg);
   }
   configure(value,collections=[],associations=[]){this.preferences=cleanGraphSettings(value);this.collections=collections;this.associations=associations;}
-  setLayout(value) { this.cancelNaturalLayout();this.naturalUndo=null;cancelAnimationFrame(this.frame); this.network = null; const normalized=cleanLayout(value),legacy=Object.keys(normalized).some(key=>key.startsWith('tag:'));this.cache=Object.fromEntries(Object.entries(normalized).filter(([key,point])=>key.startsWith('relation:')||key.startsWith('paper:')&&(!legacy||point.pinned))); }
+  setLayout(value) { this.cancelNaturalLayout();this.naturalUndo=null;this.naturalOverview=false;cancelAnimationFrame(this.frame); this.network = null; const normalized=cleanLayout(value),legacy=Object.keys(normalized).some(key=>key.startsWith('tag:'));this.cache=Object.fromEntries(Object.entries(normalized).filter(([key,point])=>key.startsWith('relation:')||key.startsWith('paper:')&&(!legacy||point.pinned))); }
   setData(papers, selected, allGroups = []) {
     const wasMoving=Boolean(this.frame);this.cancelNaturalLayout();
     cancelAnimationFrame(this.frame);
@@ -160,10 +160,10 @@ export class StarMap {
     this.cancelNaturalLayout();if(!this.network?.nodes.length)return false;
     const network=this.network,controller=new AbortController(),task={network,controller};
     cancelAnimationFrame(this.frame);this.frame=null;this.heat=0;for(const node of network.nodes){node.vx=0;node.vy=0;}
-    const previous={points:networkSnapshot(network),camera:{scale:this.scale,x:this.x,y:this.y},key:network.nodes.map(n=>n.id).sort().join('|')};
+    const previous={points:networkSnapshot(network),camera:{scale:this.scale,x:this.x,y:this.y},height:this.viewHeight,key:network.nodes.map(n=>n.id).sort().join('|'),overview:this.naturalOverview,activeId:this.activeId};
     const glyphWidths={},style=getComputedStyle(this.svg);this.labelCanvas.font=`${style.fontWeight} 10px ${style.fontFamily}`;
     for(const node of network.nodes)for(const c of String(node.paper?.title||node.label||node.tag||''))if(glyphWidths[c]===undefined)glyphWidths[c]=this.labelCanvas.measureText(c).width/10;
-    const input={height:this.viewHeight,activeId:this.activeId,threshold:this.preferences.labelThreshold,showLabels:this.options?.showLabels,fontScale:(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||13)/13*(this.appearance?.labelScale||1),glyphWidths,
+    const input={height:this.viewHeight,activeId:'',threshold:this.preferences.labelThreshold,showLabels:this.options?.showLabels,fontScale:(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||13)/13*(this.appearance?.labelScale||1),glyphWidths,
       nodes:network.nodes.map(n=>({id:n.id,type:n.type,title:n.paper?.title||n.label||n.tag||'',group:n.paper?.collection||'',x:n.x,y:n.y,pinned:n.pinned,radius:n.visualRadius??n.radius})),edges:network.edges.map(e=>({source:e.source.id,target:e.target.id}))};
     this.naturalTask=task;this.naturalState();
     try{
@@ -171,7 +171,7 @@ export class StarMap {
       this.naturalUndo=previous;this.naturalState();
       const destinations=new Map(result.points.map(p=>[p.id,p]));
       const apply=t=>{const ease=1-Math.pow(1-t,3);for(const n of network.nodes){const a=previous.points[n.id],b=destinations.get(n.id);if(!a||!b)continue;n.x=a.x+(b.x-a.x)*ease;n.y=a.y+(b.y-a.y)*ease;n.pinned=b.pinned;n.vx=0;n.vy=0;n.fx=null;n.fy=null;}
-        for(const key of ['scale','x','y'])this[key]=previous.camera[key]+(result.camera[key]-previous.camera[key])*ease;this.paint();this.transform();};
+        for(const key of ['scale','x','y'])this[key]=previous.camera[key]+(result.camera[key]-previous.camera[key])*ease;this.viewport?.setAttribute('transform',`translate(${this.x} ${this.y}) scale(${this.scale})`);this.onZoom?.(Math.round(this.scale*100));this.paint();};
       if(matchMedia('(prefers-reduced-motion: reduce)').matches)apply(1);
       else await new Promise(resolve=>{
         let start=0,frame;
@@ -179,7 +179,7 @@ export class StarMap {
         const tick=time=>{if(this.naturalTask!==task){stop();return;}start ||= time;const t=Math.min(1,(time-start)/680);apply(t);if(t<1)frame=requestAnimationFrame(tick);else{controller.signal.removeEventListener('abort',stop);resolve(true);}};
         frame=requestAnimationFrame(tick);
       });
-      if(this.naturalTask!==task)return false;this.naturalTask=null;this.saveLayout();this.svg.dataset.naturalLayout='settled';this.naturalState();return result;
+      if(this.naturalTask!==task)return false;this.naturalTask=null;this.naturalOverview=true;this.highlightNode('');this.saveLayout();this.svg.dataset.naturalLayout='settled';this.naturalState();return result;
     }catch(error){if(error.name==='AbortError')return false;throw error;}
     finally{if(this.naturalTask===task){this.naturalTask=null;this.naturalState();}}
   }
@@ -187,11 +187,11 @@ export class StarMap {
     if(!this.naturalUndo)return false;this.cancelNaturalLayout();cancelAnimationFrame(this.frame);this.frame=null;this.heat=0;
     const previous=this.naturalUndo;this.naturalUndo=null;Object.assign(this.cache,previous.points);
     for(const node of this.network?.nodes||[]){const point=previous.points[node.id];if(point)Object.assign(node,point,{vx:0,vy:0,fx:null,fy:null});}
-    const key=this.network?.nodes.map(n=>n.id).sort().join('|');if(key===previous.key)Object.assign(this,previous.camera);else Object.assign(this,fitGraphViewport(this.network?.nodes||[],1000,this.viewHeight));
-    this.paint();this.transform();this.saveLayout();this.svg.dataset.naturalLayout='restored';this.naturalState();return true;
+    const key=this.network?.nodes.map(n=>n.id).sort().join('|');if(key===previous.key&&Math.abs(this.viewHeight-previous.height)<1)Object.assign(this,previous.camera);else Object.assign(this,fitGraphViewport(this.network?.nodes||[],1000,this.viewHeight));
+    this.naturalOverview=Boolean(previous.overview);this.paint();this.transform();this.highlightNode(previous.activeId||'');this.saveLayout();this.svg.dataset.naturalLayout='restored';this.naturalState();return true;
   }
-  select(id) { this.selected = id; this.highlight(id); }
-  highlight(id) { this.highlightNode(id?'paper:'+id:''); }
+  select(id) { this.cancelNaturalLayout();this.naturalOverview=false;this.selected = id; this.highlight(id); }
+  highlight(id) { this.highlightNode(this.naturalOverview?'':id?'paper:'+id:''); }
   highlightNode(key) {
     this.activeId=key;const active=this.network?.byId.get(key),tagIds=new Set();this.relatedIds=new Set(key?[key]:[]);
     if(active?.type==='relation')tagIds.add(active.id);
@@ -206,7 +206,7 @@ export class StarMap {
     const bounds=this.svg.getBoundingClientRect(),viewportScale=Math.min(bounds.width/1000,bounds.height/this.viewHeight)||1;
     const svgStyle=getComputedStyle(this.svg),family=svgStyle.fontFamily,weight=svgStyle.fontWeight,fontScale=(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||13)/13*(this.appearance?.labelScale||1),measureText=(text,font)=>{const key=font.toFixed(4)+'|'+text;if(!this.labelWidths.has(key)){this.labelCanvas.font=`${weight} ${font}px ${family}`;this.labelWidths.set(key,this.labelCanvas.measureText(text).width);}return this.labelWidths.get(key);};
     if(this.labelWidths.size>10000)this.labelWidths.clear();
-    const positions=placeNodeLabels(this.network.nodes.map(node=>({...node,radius:node.visualRadius??node.radius})),{scale:this.scale,viewportScale,measureText,fontScale,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.preferences.labelThreshold,viewHeight:this.viewHeight,previous:this.labelPositions});this.labelPositions=positions;
+    const positions=placeNodeLabels(this.network.nodes.map(node=>({...node,radius:node.visualRadius??node.radius})),{scale:this.scale,viewportScale,measureText,fontScale,panX:this.x,panY:this.y,activeId:this.activeId,relatedIds:this.relatedIds,showLabels:this.options?.showLabels!==false,threshold:this.naturalOverview?Math.min(this.preferences.labelThreshold,this.scale*.9):this.preferences.labelThreshold,viewHeight:this.viewHeight,previous:this.labelPositions});this.labelPositions=positions;
     for(const item of this.nodes)item.group.querySelector('.node-hit-area').setAttribute('r',Math.max((item.node.visualRadius??item.node.radius)+5,11/(this.scale*viewportScale)));
     for(const item of this.nodes){const placed=positions.get(item.node.id);item.label.style.opacity=placed?String(placed.opacity):'0';item.label.setAttribute('aria-hidden',String(!placed));if(!placed)continue;item.label.setAttribute('x',placed.x);item.label.setAttribute('y',placed.y);item.label.setAttribute('text-anchor','start');item.label.style.fontSize=placed.font+'px';const text=placed.lines.join('|');if(item.label.dataset.lines!==text){item.label.replaceChildren(...placed.lines.map((line,index)=>el('tspan',{x:placed.x,dy:index?placed.font*1.35:0},line)));item.label.dataset.lines=text;}else for(const [index,span]of [...item.label.children].entries()){span.setAttribute('x',placed.x);span.setAttribute('dy',index?placed.font*1.35:0);}}
   }

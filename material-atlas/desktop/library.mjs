@@ -20,6 +20,7 @@ import { seedJournalMetrics } from '../dist/journal-data.js';
 import { cleanThemePreferences } from '../dist/themes.js';
 import {FolderSync} from './folder-sync.mjs';
 import {seedImportActivity,recordImports,mergeImportActivity} from '../dist/import-activity.js';
+import {planReadingStatus,preserveReadingStatus} from '../dist/reading-status.js';
 
 export function resolveInside(root, relative) {
   const resolved = path.resolve(root, relative);
@@ -141,7 +142,7 @@ export class LocalLibrary {
       await writeFile(temp, bytes, { flag: 'wx' }); await rename(temp, destination);
     }
     if (!paper.pdfPath) throw new Error('文献缺少 PDF 文件。');
-    return paper;
+    return preserveReadingStatus(paper,input.readingStatus!==undefined?input:existing);
   }
   async putPapers(inputs) {
     if (!Array.isArray(inputs) || inputs.length > 10000) throw new Error('导入数量不正确。');
@@ -172,6 +173,9 @@ export class LocalLibrary {
       if (plan.collection) data.settings.collections = [...(data.settings.collections || []), plan.collection];
       return { count: plan.updates.length };
     });
+  }
+  async setReadingStatus(ids,status){
+    return this.mutate(data=>{const plan=planReadingStatus(data.papers,ids,status),updates=new Map(plan.updates.map(p=>[p.id,p]));data.papers=data.papers.map(p=>updates.get(p.id)||p);return {count:plan.count};});
   }
   async deletePapers(ids) {
     return this.mutate(async data => {
@@ -221,6 +225,6 @@ export class LocalLibrary {
   }
   async info() {
     let bytes = 0; for (const paper of this.data.papers) { try { bytes += (await stat(await this.pdfPath(paper.id))).size; } catch {} }
-    return { path: this.root, papers: this.data.papers.length, bytes, folderSyncVersion:1,importActivityVersion:1,studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1, materialGroupsVersion: 1 };
+    return { path: this.root, papers: this.data.papers.length, bytes, readingStatusVersion:1,folderSyncVersion:1,importActivityVersion:1,studyVersion: 1, materialsVersion: 1, readerNotesVersion: 1, readerAnnotationsVersion: 1, readerDraftsVersion: 1, themeSchemaVersion: 2, graphThemeVersion: GRAPH_APPEARANCE_VERSION, researchCanvasVersion: 1, materialSelectionVersion: 1, materialGroupsVersion: 1 };
   }
 }

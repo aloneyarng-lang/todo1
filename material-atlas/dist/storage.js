@@ -7,6 +7,7 @@ import {cleanStudy,mergeVocabulary,saveTranslationCache} from './study-model.js'
 import {cleanMaterialGroups,mergeMaterialGroups} from './material-list-model.js';
 import {cleanMaterialSelection} from './material-selection.js';
 import {cleanImportActivity,seedImportActivity,recordImports,mergeImportActivity} from './import-activity.js';
+import {planReadingStatus,preserveReadingStatus,cleanReadingStatus} from './reading-status.js';
 export const DB_NAME = 'materia-library-v1';
 export const BACKUP_FORMAT = 'materia-backup';
 let connection;
@@ -56,7 +57,7 @@ export const getPapers = async () => (await (native ? native.getPapers() : trans
 async function webPutPapers(incoming){
   const db=await openDatabase();return new Promise((resolve,reject)=>{
     const tx=db.transaction(['papers','settings'],'readwrite'),papers=tx.objectStore('papers'),settings=tx.objectStore('settings'),all=papers.getAll(),activity=settings.get('importActivity');let pending=2;
-    const ready=()=>{if(--pending)return;try{const history=activity.result?.value||seedImportActivity(all.result);settings.put({key:'importActivity',value:recordImports(history,incoming)});for(const paper of incoming)papers.put(paper);}catch(error){tx.abort();reject(error);}};
+    const ready=()=>{if(--pending)return;try{const history=activity.result?.value||seedImportActivity(all.result),previous=new Map(all.result.map(p=>[p.id,p]));settings.put({key:'importActivity',value:recordImports(history,incoming)});for(const paper of incoming)papers.put(preserveReadingStatus(paper,previous.get(paper.id)));}catch(error){tx.abort();reject(error);}};
     all.onsuccess=ready;activity.onsuccess=ready;tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('导入未保存。'));
   });
 }
@@ -66,6 +67,13 @@ export const deletePaper = id => native ? native.deletePaper(id) : transaction('
 export const getSetting = async key => native ? native.getSetting(key) : (await transaction('settings', 'readonly', store => store.get(key)))?.value;
 export const setSetting = async (key, value) => { if(key==='notes'){value=normalizeNotes(value);await assertRichNoteSupport(value);}if(key==='readerDrafts')await assertRichNoteSupport({drafts:(value||[]).map(row=>row.note)});return native ? native.setSetting(key, value) : transaction('settings', 'readwrite', store => store.put({ key, value })); };
 export async function getImportActivity(){const saved=await getSetting('importActivity');return saved?cleanImportActivity(saved):seedImportActivity(await getPapers());}
+export async function setReadingStatus(ids,status){
+  if(native){if(typeof native.setReadingStatus!=='function')throw Error('请完全退出并重开 Materia，启用阅读状态保存。');return native.setReadingStatus(ids,status);}
+  const db=await openDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction('papers','readwrite'),store=tx.objectStore('papers'),request=store.getAll();let count=0,failure;
+    request.onsuccess=()=>{try{const plan=planReadingStatus(request.result,ids,status);count=plan.count;for(const paper of plan.updates)store.put(paper);}catch(error){failure=error;tx.abort();}};
+    tx.oncomplete=()=>resolve({count});tx.onerror=()=>reject(failure||tx.error);tx.onabort=()=>reject(failure||tx.error||Error('阅读状态未保存。'));
+  });
+}
 
 async function removalTransaction(batchId, run) {
   const db = await openDatabase();
@@ -181,6 +189,7 @@ export function readBackup(value) {
       year: /^\d{4}$/.test(String(item.year || '')) ? String(item.year) : '',
       tags: normalizeTags(item.tags), notes: typeof item.notes === 'string' ? item.notes.slice(0, 20000) : '',
       collection: collectionIds.has(item.collection) ? item.collection : '',
+      ...(item.readingStatus!==undefined?{readingStatus:cleanReadingStatus(item.readingStatus)}:{}),
       favorite: Boolean(item.favorite), addedAt: Number.isFinite(item.addedAt) ? item.addedAt : Date.now(),
       filename: typeof item.filename === 'string' ? item.filename.slice(0, 1000) : '',
       fingerprint: typeof item.fingerprint === 'string' && /^[a-f0-9]{64}$/.test(item.fingerprint) ? item.fingerprint : '',
@@ -213,7 +222,7 @@ export async function mergeBackup(backup) {
       for (const item of backup.collections) merged.set(item.id, item);
       settings.put({ key: 'collections', value: [...merged.values()] });
       settings.put({ key: 'mode', value: 'own' });
-      for (const paper of backup.papers) tx.objectStore('papers').put(paper);
+      const previous=new Map((existingPapers.result||[]).map(p=>[p.id,p]));for (const paper of backup.papers) tx.objectStore('papers').put(preserveReadingStatus(paper,previous.get(paper.id)));
     };
     const noteRequest = settings.get('notes');
     noteRequest.onsuccess = () => {

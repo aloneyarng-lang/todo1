@@ -2,7 +2,7 @@
   "format": "materia-theme",
   "schemaVersion": 2,
   "name": "命运石之门",
-  "description": "世界线观测 · 琥珀仪表 · 未来道具研究所",
+  "description": "世界线观测 · 琥珀仪表",
   "tokens": {
     "--graph-node-shape": "symbol",
     "--graph-relation-shape": "symbol",

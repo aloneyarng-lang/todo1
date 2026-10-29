@@ -1,0 +1,45 @@
+import {READING_STATUSES,readingStatusInfo,readingStatusOf,readingStatusCounts} from './reading-status.js';
+
+export function readingStatusBadge(paper,escape){
+  const status=readingStatusInfo(paper);
+  return `<button type="button" class="reading-status-chip" data-reading-paper="${escape(paper.id)}" data-reading-status="${status.id}" aria-haspopup="menu" aria-expanded="false" aria-label="阅读状态：${status.name}，${escape(paper.title)}" title="更改阅读状态"><i class="reading-status-dot" aria-hidden="true"></i><span>${status.name}</span><small aria-hidden="true">⌄</small></button>`;
+}
+export function readingStatusHeading(paper,count){const status=readingStatusInfo(paper);return `<div class="paper-status-heading" data-reading-status="${status.id}" role="heading" aria-level="3"><i class="reading-status-dot" aria-hidden="true"></i><strong>${status.name}</strong><small>${count} 篇</small></div>`;}
+export function createReadingStatusController(config){
+  const esc=config.escape,menu=document.createElement('div');menu.className='paper-context-panel reading-status-menu';menu.id='reading-status-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');menu.setAttribute('aria-label','设置阅读状态');document.body.append(menu);
+  let targets=[],origin=null,busy=false;
+  const open=()=>menu.matches(':popover-open');
+  function close(restore=false){if(open())menu.hidePopover();origin?.setAttribute('aria-expanded','false');if(restore){const fallback=document.querySelector('#reading-status-filters [aria-pressed=true]');(origin?.isConnected?origin:fallback)?.focus({preventScroll:true});}}
+  function render(){
+    close();const host=document.querySelector('#reading-status-filters');if(!host)return;host.hidden=!config.isVisible();
+    const papers=config.getScopePapers(),counts=readingStatusCounts(papers),selected=config.getFilter();
+    host.innerHTML=`<div class="reading-status-filter-group" role="group" aria-label="按阅读状态筛选"><button type="button" data-reading-filter="" aria-pressed="${!selected}">全部<small>${papers.length}</small></button>${READING_STATUSES.map(s=>`<button type="button" data-reading-filter="${s.id}" data-reading-status="${s.id}" aria-pressed="${selected===s.id}"><i class="reading-status-dot" aria-hidden="true"></i>${s.name}<small>${counts[s.id]}</small></button>`).join('')}</div>`;
+  }
+  function show(ids,button){
+    if(busy||!config.canEdit())return;
+    const existing=new Set(config.getPapers().map(p=>p.id));targets=[...new Set(ids)].filter(id=>existing.has(id));if(!targets.length){config.toast('请先选择文献。');return;}
+    origin=button;const rows=config.getPapers().filter(p=>targets.includes(p.id)),current=rows.every(p=>readingStatusOf(p)===readingStatusOf(rows[0]))?readingStatusOf(rows[0]):'';
+    menu.innerHTML=`<header><strong>阅读状态${targets.length>1?' · '+targets.length+' 篇':''}</strong></header>${READING_STATUSES.map(s=>`<button type="button" role="menuitemradio" tabindex="-1" data-reading-set="${s.id}" data-reading-status="${s.id}" aria-checked="${current===s.id}"><span><span class="reading-status-menu-label"><i class="reading-status-dot" aria-hidden="true"></i>${s.name}</span><span aria-hidden="true">${current===s.id?'✓':''}</span></span></button>`).join('')}`;
+    menu.showPopover();const box=button.getBoundingClientRect(),left=Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,box.left)),top=box.bottom+menu.offsetHeight+8<innerHeight?box.bottom+6:Math.max(8,box.top-menu.offsetHeight-6);
+    menu.style.left=left+'px';menu.style.top=top+'px';button.setAttribute('aria-expanded','true');(menu.querySelector('[aria-checked=true]')||menu.querySelector('button'))?.focus({preventScroll:true});
+  }
+  async function set(ids,status){
+    if(busy)throw Error('正在保存阅读状态，请稍候。');if(!config.canEdit())return;
+    const captured=[...ids];busy=true;menu.setAttribute('aria-busy','true');menu.querySelectorAll('button').forEach(b=>b.disabled=true);
+    try{const result=await config.persist(captured,status);await config.reload();const feedback=document.querySelector('#reading-status-feedback');if(feedback)feedback.textContent=`${captured.length} 篇文献已设为${READING_STATUSES.find(s=>s.id===status)?.name||status}`;return result;}
+    finally{busy=false;menu.setAttribute('aria-busy','false');menu.querySelectorAll('button').forEach(b=>b.disabled=false);}
+  }
+  document.addEventListener('click',event=>{
+    const filter=event.target.closest('[data-reading-filter]');if(filter){config.setFilter(filter.dataset.readingFilter);return;}
+    const button=event.target.closest('[data-reading-paper],[data-reading-selected]');if(button)show(button.hasAttribute('data-reading-selected')?[...config.getSelection()]:[button.dataset.readingPaper],button);
+  });
+  menu.addEventListener('click',async event=>{event.stopPropagation();const button=event.target.closest('[data-reading-set]');if(!button||button.disabled||busy)return;const ids=[...targets];try{await set(ids,button.dataset.readingSet);close(true);}catch(error){config.toast(error.message,true);}});
+  document.addEventListener('keydown',event=>{
+    if(!open())return;event.stopPropagation();const buttons=[...menu.querySelectorAll('button:not(:disabled)')],index=buttons.indexOf(document.activeElement);
+    if(event.key==='Escape'){event.preventDefault();close(true);return;}if(event.key==='Tab'){close();return;}
+    let next;if(event.key==='ArrowDown')next=buttons[(index+1)%buttons.length];if(event.key==='ArrowUp')next=buttons[(index-1+buttons.length)%buttons.length];if(event.key==='Home')next=buttons[0];if(event.key==='End')next=buttons.at(-1);if(next){event.preventDefault();next.focus();}
+  },true);
+  menu.addEventListener('toggle',event=>{if(event.newState==='closed')origin?.setAttribute('aria-expanded','false');});
+  addEventListener('resize',()=>close());document.addEventListener('scroll',event=>{if(!menu.contains(event.target))close();},true);
+  return {render,set,close,isBusy:()=>busy};
+}
