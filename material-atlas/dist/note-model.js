@@ -41,7 +41,7 @@ export function normalizeNotes(value={}){
   return result;
 }
 export function cleanReaderState(value={}){
-  return Object.fromEntries(Object.entries(value||{}).slice(-3000).filter(([id,row])=>/^[\w-]{1,120}$/.test(id)&&row&&Number.isInteger(row.page)&&row.page>0&&row.page<=100000).map(([id,row])=>[id,{page:row.page,zoom:['fit','page'].includes(row.zoom)?row.zoom:Math.max(.4,Math.min(3,Number(row.zoom)||1)),...(['single','spread','book'].includes(row.layout)?{layout:row.layout}:{}),...(typeof row.sidebarOpen==='boolean'?{sidebarOpen:row.sidebarOpen}:{}),...(Number.isFinite(row.sidebarWidth)?{sidebarWidth:Math.min(520,Math.max(270,row.sidebarWidth))}:{}),...(typeof row.wheelTurn==='boolean'?{wheelTurn:row.wheelTurn}:{})}]));
+  return Object.fromEntries(Object.entries(value||{}).slice(-3000).filter(([id,row])=>/^[\w-]{1,120}$/.test(id)&&row&&Number.isInteger(row.page)&&row.page>0&&row.page<=100000).map(([id,row])=>[id,{page:row.page,zoom:['fit','page'].includes(row.zoom)?row.zoom:Math.max(.4,Math.min(3,Number(row.zoom)||1)),...(['paged','vertical','horizontal'].includes(row.flow)?{flow:row.flow}:{}),...(['single','spread','book'].includes(row.layout)?{layout:row.layout}:{}),...(typeof row.sidebarOpen==='boolean'?{sidebarOpen:row.sidebarOpen}:{}),...(Number.isFinite(row.sidebarWidth)?{sidebarWidth:Math.min(520,Math.max(270,row.sidebarWidth))}:{}),...(typeof row.wheelTurn==='boolean'?{wheelTurn:row.wheelTurn}:{})}]));
 }
 export function cleanReaderDrafts(value=[]){
   if(!Array.isArray(value)||value.length>200)throw new Error('本地草稿格式不正确或超过 200 条，请保存或清理一些草稿。');
