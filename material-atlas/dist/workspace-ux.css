@@ -37,3 +37,60 @@ html[data-theme-mode=dark]{--activity-0:#293231;--activity-1:#0e4429;--activity-
 .theme-preview-portrait{position:absolute;right:0;top:0;width:52%;height:100%;object-fit:contain;object-position:100% 50%}
 @media(max-width:1100px){.theme-artwork{gap:10px;padding:10px 12px;min-height:82px}.theme-official-logo{width:150px;height:52px}.theme-artwork-caption small{max-width:170px}.theme-official-portrait{width:120px}.theme-artwork-caption{margin-right:100px}}
 @media(max-width:760px){.settings-inline-actions{width:100%}.activity-footer{align-items:flex-start}.activity-footer>[data-activity-detail]{max-width:180px}}
+
+/* Research UI: quiet hierarchy, shared spacing and theme-aware surfaces. */
+.surface-toolbar .view-tabs{height:auto;align-self:center;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--glass-field,var(--canvas))}
+.surface-toolbar .view-tab{min-height:32px;padding:8px 12px;border-radius:8px;font-size:.75rem;line-height:1.4}
+.surface-toolbar .view-tab.active{background:var(--glass-card,var(--surface));box-shadow:0 1px 4px var(--shadow);color:var(--teal)}
+.surface-toolbar .view-tab.active:after{display:none}
+.surface-toolbar .view-tab:hover:not(.active){background:var(--teal-light);color:var(--ink)}
+.surface-toolbar .search-box{min-height:36px;background:var(--glass-field,var(--surface))}
+.network-title-line>strong{font-weight:600;color:var(--ink)}
+.network-title-line>span,.nav-count{font-variant-numeric:tabular-nums}
+.paper-row h3,.detail-panel .paper-title,.notes-library h3{text-wrap:pretty}
+.paper-row{border-color:var(--line)}
+.paper-row:hover{border-color:color-mix(in srgb,var(--teal) 35%,var(--line))}
+.detail-panel .paper-authors{font-size:.75rem;line-height:1.8}
+.detail-panel .note-preview{padding:12px;border-radius:8px}
+.detail-panel .note-preview p{font-size:.75rem;line-height:1.8;color:var(--ink)}
+
+/* This flex child must own its scroll; otherwise the explorer clips later notes. */
+.notes-library{flex:1 1 0;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-gutter:stable;padding:0 24px 24px;scroll-padding:112px 0 24px}
+.notes-library-toolbar{position:sticky;top:0;z-index:2;margin:0 -24px 24px;padding:16px 24px;gap:12px;background:var(--glass-reading,var(--surface));border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.notes-library-toolbar p{margin:0;color:var(--ink);font-size:.875rem;font-weight:600}
+.notes-library-toolbar>div{flex-wrap:wrap;align-items:center}
+.notes-library-toolbar select{width:240px;max-width:100%;min-height:36px;font-size:.75rem;padding:8px 12px;border-radius:8px}
+.notes-library-toolbar .outline-button{min-height:36px;padding:8px 12px;font-size:.75rem;white-space:nowrap}
+.notes-library-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));align-items:start;gap:16px}
+.notes-library .note-card,.modal .note-card{padding:24px;border-radius:var(--card-radius,16px);border:1px solid var(--line);background:var(--glass-card,var(--surface))}
+.notes-library .note-card:hover{border-color:color-mix(in srgb,var(--teal) 35%,var(--line))}
+.notes-library .note-card-meta{gap:8px;margin-bottom:16px;font-size:.75rem;color:var(--muted)}
+.notes-library .note-card-meta>span{padding:4px 8px;border-radius:8px;background:var(--teal-light);color:var(--teal);font-size:.75rem}
+.notes-library .note-card-meta time,.modal .note-card-meta time{font-size:.75rem;font-variant-numeric:tabular-nums}
+.notes-library .note-card-meta .text-button,.modal .note-card-meta .text-button{font-size:.75rem;min-height:32px;padding:4px 8px;border-radius:8px}
+.notes-library h3{margin:0 0 16px;font-size:1rem;font-weight:600;line-height:1.5;color:var(--ink)}
+.notes-library .note-body{max-height:none;overflow:visible}
+.notes-library .note-body,.modal .note-body{font-size:.875rem;line-height:1.85;color:var(--ink)}
+.notes-library .note-anchor-link{display:inline-flex;margin-top:16px;font-size:.75rem;line-height:1.6;text-align:left}
+.notes-library .notes-empty{padding:48px 24px;font-size:.875rem;line-height:1.8}
+.notes-library:focus-visible{outline:2px solid var(--teal);outline-offset:-4px}
+
+/* Keep the close control visible while scrolling a long paper's notes. */
+.modal:has(.notes-stack){scrollbar-gutter:stable;overscroll-behavior-y:contain;scroll-padding-top:112px}
+.modal:has(.notes-stack) .modal-heading{position:sticky;top:0;z-index:3;padding:24px;background:var(--glass-floating,var(--surface));border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.modal:has(.notes-stack) .modal-body{padding:24px}
+.modal:has(.notes-stack) .note-composer{margin:16px 0 24px;padding:16px;border-radius:var(--card-radius,12px);background:var(--glass-field,var(--canvas))}
+.modal:has(.notes-stack) .note-composer textarea{font-size:.875rem;line-height:1.8;padding:12px}
+.modal:has(.notes-stack) .notes-section-heading{font-size:.875rem;font-weight:600;margin:24px 0 16px}
+.modal:has(.notes-stack) .note-card{margin:0 0 16px}
+.modal:has(.notes-stack) .note-card-meta{flex-wrap:wrap;gap:8px}
+:is(.notes-library,.modal:has(.notes-stack)){scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 55%,transparent) transparent}
+:is(.view-tab,.note-card,.note-card-meta .text-button){transition:background-color 200ms cubic-bezier(.22,1,.36,1),border-color 200ms cubic-bezier(.22,1,.36,1),color 200ms cubic-bezier(.22,1,.36,1)}
+@media(max-width:1100px){
+ .surface-toolbar .view-tab{padding:8px;font-size:.75rem}
+ .notes-library{padding:0 16px 16px}
+ .notes-library-toolbar{margin:0 -16px 16px;padding:16px}
+ .notes-library .note-card{padding:16px}
+ .notes-library-toolbar select{width:200px}
+}
+@media(prefers-reduced-motion:reduce){:is(.view-tab,.note-card,.note-card-meta .text-button){transition:none}}
